@@ -7,7 +7,7 @@ import json
 import asyncio
 import os
 import time
-from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
+from django.http import StreamingHttpResponse, JsonResponse
 from asgiref.sync import async_to_sync, sync_to_async
 from django.views.decorators.csrf import csrf_exempt
 
@@ -56,7 +56,7 @@ def chat(request):
 @csrf_exempt
 def chat_stream(request):
     """
-    Process a chat message and stream the response using Server-Sent Events (SSE).
+    Very simple streaming approach that just streams the agent's response with words
     """
     try:
         # Get message from request
@@ -67,17 +67,17 @@ def chat_stream(request):
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
-        # Define a simple generator function to stream the response
-        def event_stream():
-            # Manually constructed SSE format
-            yield "retry: 1000\n"  # Optional: Retry if connection is lost
+        # Define generator function for the streaming response
+        def generate_stream():
+            # Send SSE format retry directive
+            yield "retry: 1000\n\n"
             
             try:
-                # Get our agent and process the message fully
+                # Initialize the agent
                 factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
                 agent = factory.create_agent()
                 
-                # Process message synchronously to get the full response
+                # Get the full response first (no streaming from OpenAI)
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
@@ -85,48 +85,42 @@ def chat_stream(request):
                 finally:
                     loop.close()
                 
-                text = response.get('text', '')
+                # Get the text response
+                full_text = response.get('text', '')
                 
-                # Split the response into sentences for more natural streaming
-                import re
-                sentences = re.split(r'(?<=[.!?])\s+', text)
+                # Split the text by words for a more natural streaming
+                words = full_text.split(' ')
                 
-                # Remove duplicate consecutive sentences
-                unique_sentences = []
-                for sentence in sentences:
-                    if not sentence.strip():
+                # Stream the words one at a time with spaces
+                for i, word in enumerate(words):
+                    if not word:
                         continue
-                    if not unique_sentences or sentence != unique_sentences[-1]:
-                        unique_sentences.append(sentence)
-                
-                for i, sentence in enumerate(unique_sentences):
-                    # Format the chunk as a proper SSE event
-                    data_obj = json.dumps({
-                        'text': sentence + (' ' if i < len(unique_sentences) - 1 else ''),
-                        'finished': False
-                    })
+                        
+                    word_chunk = word + (' ' if i < len(words) - 1 else '')
+                    data = json.dumps({"text": word_chunk, "finished": False})
+                    yield f"event: chunk\ndata: {data}\n\n"
                     
-                    yield f"event: chunk\ndata: {data_obj}\n\n"
-                    time.sleep(0.2)  # Add delay between sentences for natural reading
+                    # Small delay to make the streaming visible
+                    time.sleep(0.05)
                 
-                # Send a completion event
+                # Send completion event
                 yield f"event: done\ndata: {json.dumps({'finished': True})}\n\n"
                 
             except Exception as e:
-                error_data = json.dumps({'error': str(e)})
-                yield f"event: error\ndata: {error_data}\n\n"
+                # Send error event
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         
-        # Return a properly configured SSE response
+        # Create the streaming response
         response = StreamingHttpResponse(
-            event_stream(),
+            generate_stream(),
             content_type='text/event-stream'
         )
         
-        # Required headers for SSE
+        # Set required headers for SSE
         response['Cache-Control'] = 'no-cache'
-        response['X-Accel-Buffering'] = 'no'  # For Nginx
+        response['X-Accel-Buffering'] = 'no'
         
         return response
         
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=500) 

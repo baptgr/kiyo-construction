@@ -14,6 +14,15 @@ class AgentInterface(ABC):
     async def process_message_stream(self, message: str, conversation_id: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
         """Process a message and yield chunks of the response as they're generated."""
         pass
+    
+    @abstractmethod
+    def get_stream(self, message: str, conversation_id: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Get a streaming response from the agent.
+        
+        Returns an async iterator of response chunks.
+        """
+        pass
 
 
 class AgentFactory(ABC):
