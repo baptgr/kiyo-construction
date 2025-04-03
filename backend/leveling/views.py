@@ -69,63 +69,64 @@ def chat_stream(request):
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
-        # Define a synchronous generator function for the StreamingHttpResponse
+        # Create a function that runs the entire streaming process in a single context
         def sync_event_stream():
             # SSE header for retry
             yield "retry: 1000\n\n"
             
-            # Initialize agent
-            factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
-            agent = factory.create_agent()
-            
-            # Create and run the loop for async streaming
+            # Create a single event loop that will be used for the entire streaming process
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
             try:
-                # Get the async stream generator
-                stream_gen = agent.get_stream(message, conversation_id)
+                # Initialize agent
+                factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
+                agent = factory.create_agent()
                 
-                # Consume the generator synchronously
+                # Create a single async function that handles the entire streaming process
+                async def process_stream():
+                    try:
+                        # Use the agent's streaming method directly (not iterating over it yet)
+                        stream = agent.get_stream(message, conversation_id)
+                        
+                        # Process each chunk in a single async context
+                        async for chunk in stream:
+                            if 'error' in chunk:
+                                yield f"event: error\ndata: {json.dumps({'error': chunk['error']})}\n\n"
+                                return
+                            elif chunk.get('finished', False):
+                                yield f"event: done\ndata: {json.dumps({'finished': True})}\n\n"
+                                return
+                            elif 'text' in chunk:
+                                yield f"event: chunk\ndata: {json.dumps({'text': chunk['text'], 'finished': False})}\n\n"
+                    except Exception as e:
+                        print(f"Error in async stream processing: {e}")
+                        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                
+                # Create a generator that yields chunks from the async process
+                async def async_generator():
+                    async for item in process_stream():
+                        yield item
+                
+                # Run the entire streaming process and yield chunks synchronously
+                generator = async_generator()
                 while True:
                     try:
-                        # Get the next chunk from the stream
-                        chunk = loop.run_until_complete(stream_gen.__anext__())
-                        
-                        # Format each chunk as an SSE event
-                        if 'error' in chunk:
-                            data = json.dumps({'error': chunk['error']})
-                            yield f"event: error\ndata: {data}\n\n"
-                            break
-                        elif chunk.get('finished', False):
-                            data = json.dumps({'finished': True})
-                            yield f"event: done\ndata: {data}\n\n"
-                            break
-                        elif 'text' in chunk:
-                            data = json.dumps({
-                                'text': chunk['text'],
-                                'finished': False
-                            })
-                            yield f"event: chunk\ndata: {data}\n\n"
-                    
+                        # Get the next chunk from the generator in the same context
+                        chunk = loop.run_until_complete(generator.__anext__())
+                        yield chunk
                     except StopAsyncIteration:
-                        # End of stream
                         break
                     except Exception as e:
-                        # Handle errors in stream processing
-                        error_data = json.dumps({'error': str(e)})
-                        yield f"event: error\ndata: {error_data}\n\n"
+                        print(f"Error in sync wrapper: {e}")
+                        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
                         break
             
-            except Exception as e:
-                # Handle initialization errors
-                error_data = json.dumps({'error': str(e)})
-                yield f"event: error\ndata: {error_data}\n\n"
             finally:
                 # Clean up the loop
                 loop.close()
         
-        # Return a properly configured SSE response with the sync generator
+        # Return a properly configured SSE response
         response = StreamingHttpResponse(
             sync_event_stream(),
             content_type='text/event-stream'

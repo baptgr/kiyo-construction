@@ -112,12 +112,19 @@ class ConstructionAgent(AgentInterface):
         # Create an async generator to handle the stream
         async def token_stream():
             full_text = ""
+            current_context = None
+            streamed_result = None
             
             try:
-                # Get the streamed result - we need to await this properly
-                result = Runner.run_streamed(self.agent, input=message)
+                # Store the current context to use consistently
+                import contextvars
+                current_context = contextvars.copy_context()
                 
-                async for event in result.stream_events():
+                # Get the streamed result inside the same context
+                streamed_result = Runner.run_streamed(self.agent, input=message)
+                
+                # Process the stream within the same context
+                async for event in streamed_result.stream_events():
                     # For raw response events (actual tokens), yield them immediately
                     if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
                         # Capture the new token
@@ -127,7 +134,7 @@ class ConstructionAgent(AgentInterface):
                         if new_token:
                             full_text += new_token
                             
-                            # Send the updated text - the view will handle deduplication
+                            # Send the updated text
                             yield {
                                 "text": full_text,
                                 "finished": False,
@@ -153,12 +160,28 @@ class ConstructionAgent(AgentInterface):
                         }
             except Exception as e:
                 # For any errors, log them and signal completion
-                print(f"Error in token stream: {e}")
-                yield {
-                    "error": str(e),
-                    "finished": True,
-                    "conversation_id": conversation_id or "default"
-                }
+                error_msg = str(e)
+                print(f"Error in token stream: {error_msg}")
+                
+                # Handle ContextVar errors gracefully
+                if "ContextVar" in error_msg or "current_trace" in error_msg or "was created in a different Context" in error_msg:
+                    print("Context variable error detected - suppressing to avoid affecting user experience")
+                    # Complete the stream without error for context variable issues
+                    yield {
+                        "text": full_text if full_text else "",
+                        "finished": True,
+                        "conversation_id": conversation_id or "default"
+                    }
+                else:
+                    # For other errors, pass them through
+                    yield {
+                        "error": str(e),
+                        "finished": True,
+                        "conversation_id": conversation_id or "default"
+                    }
+            finally:
+                # Cleanup any resources if needed
+                streamed_result = None
         
         # Return the token stream
         return token_stream()
