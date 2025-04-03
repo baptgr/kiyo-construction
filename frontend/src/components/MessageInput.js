@@ -1,5 +1,5 @@
 import { Box, TextField, IconButton } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
+import SendIcon from '../components/SendIcon';
 import { useState } from 'react';
 
 export default function MessageInput({ onSendMessage, isTyping }) {

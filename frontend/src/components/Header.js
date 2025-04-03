@@ -1,4 +1,5 @@
 import { Box, Typography } from '@mui/material';
+import LoginButton from './LoginButton';
 
 export default function Header() {
   return (
@@ -9,7 +10,8 @@ export default function Header() {
       py: 1,
       height: '48px',
       display: 'flex',
-      alignItems: 'center'
+      alignItems: 'center',
+      justifyContent: 'space-between'
     }}>
       <Typography 
         variant="h3" 
@@ -24,6 +26,8 @@ export default function Header() {
       >
         Kiyo Construction - Bid Leveling
       </Typography>
+      
+      <LoginButton />
     </Box>
   );
 } 
