@@ -6,9 +6,16 @@ A web-based bid leveling automation solution with real-time visualization, guide
 
 ```
 kiyo-construction/
-├── frontend/     # Next.js application
-└── backend/      # Django application
+├── frontend/     # Next.js application with Material UI
+└── backend/      # Django application with REST API
 ```
+
+## Features
+
+- Modern UI with responsive design
+- Fullscreen layout with spreadsheet and chat panels
+- API endpoints for document management
+- PostgreSQL database integration
 
 ## Setup Instructions
 
@@ -51,21 +58,30 @@ The frontend will be available at `http://localhost:3000`
    uv pip install -r requirements.txt
    ```
 
-4. Run migrations:
+4. Make sure PostgreSQL is running and create the database:
+   ```bash
+   createdb kiyo_construction
+   ```
+
+5. Run migrations:
    ```bash
    python manage.py migrate
    ```
 
-5. Start the development server:
+6. Start the development server:
    ```bash
    python manage.py runserver
    ```
 
-The backend API will be available at `http://localhost:8000`
+The backend API will be available at `http://localhost:8000/api/`
+
+## API Endpoints
+
+- `GET /api/` - Hello World endpoint
 
 ## Environment Variables
 
-Create `.env` files in both frontend and backend directories. Example variables needed:
+Create `.env` files in both frontend and backend directories:
 
 ### Frontend (.env.local)
 ```
@@ -76,7 +92,9 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 DEBUG=True
 SECRET_KEY=your-secret-key
-DATABASE_URL=postgresql://localhost/kiyo_construction
+DB_USER=your_database_username
+ALLOWED_HOSTS=localhost,127.0.0.1
+CORS_ORIGIN_WHITELIST=http://localhost:3000
 ```
 
 ## Development

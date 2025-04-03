@@ -1,8 +1,31 @@
 'use client';
 
-import { Container, Paper, Typography, Box, Stack, Grid } from '@mui/material';
+import { Container, Paper, Typography, Box, Stack, Button } from '@mui/material';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
+  const [apiMessage, setApiMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchHelloWorld = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('http://localhost:8000/api/');
+      if (!response.ok) {
+        throw new Error(`API responded with status ${response.status}`);
+      }
+      const data = await response.json();
+      setApiMessage(data.message);
+    } catch (err) {
+      console.error('Error fetching from API:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Box 
       sx={{ 
@@ -108,12 +131,54 @@ export default function Home() {
                 overflow: 'auto'
               }}
             >
-              <Typography variant="body1" color="text.secondary">
-                No messages yet
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Upload a document to start the conversation
-              </Typography>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={fetchHelloWorld}
+                disabled={loading}
+              >
+                {loading ? 'Loading...' : 'Call Hello World API'}
+              </Button>
+              
+              {apiMessage && (
+                <Paper 
+                  sx={{ 
+                    p: 2, 
+                    mt: 2, 
+                    width: '100%', 
+                    bgcolor: 'background.paper',
+                    borderLeft: '4px solid',
+                    borderColor: 'primary.main'
+                  }}
+                >
+                  <Typography variant="body1">
+                    {apiMessage}
+                  </Typography>
+                </Paper>
+              )}
+              
+              {error && (
+                <Paper 
+                  sx={{ 
+                    p: 2, 
+                    mt: 2, 
+                    width: '100%', 
+                    bgcolor: '#fff8f8',
+                    borderLeft: '4px solid',
+                    borderColor: 'error.main'
+                  }}
+                >
+                  <Typography variant="body2" color="error.main">
+                    Error: {error}
+                  </Typography>
+                </Paper>
+              )}
+
+              {!apiMessage && !error && !loading && (
+                <Typography variant="body2" color="text.secondary">
+                  Click the button to call the API
+                </Typography>
+              )}
             </Box>
           </Paper>
         </Box>
