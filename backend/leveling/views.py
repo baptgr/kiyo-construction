@@ -48,7 +48,9 @@ def chat(request):
         
         return JsonResponse(response)
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Log the actual error but return generic message
+        print(f"API error: {str(e)}")
+        return JsonResponse({'error': 'Error, something went wrong'}, status=500)
 
 
 @api_view(['POST'])
@@ -67,58 +69,65 @@ def chat_stream(request):
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
-        # Define a simple generator function to stream the response
-        def event_stream():
-            # Manually constructed SSE format
-            yield "retry: 1000\n"  # Optional: Retry if connection is lost
+        # Define a synchronous generator function for the StreamingHttpResponse
+        def sync_event_stream():
+            # SSE header for retry
+            yield "retry: 1000\n\n"
+            
+            # Initialize agent
+            factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
+            agent = factory.create_agent()
+            
+            # Create and run the loop for async streaming
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
             try:
-                # Get our agent and process the message fully
-                factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
-                agent = factory.create_agent()
+                # Get the async stream generator
+                stream_gen = agent.get_stream(message, conversation_id)
                 
-                # Process message synchronously to get the full response
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    response = loop.run_until_complete(agent.process_message(message, conversation_id))
-                finally:
-                    loop.close()
-                
-                text = response.get('text', '')
-                
-                # Split the response into sentences for more natural streaming
-                import re
-                sentences = re.split(r'(?<=[.!?])\s+', text)
-                
-                # Remove duplicate consecutive sentences
-                unique_sentences = []
-                for sentence in sentences:
-                    if not sentence.strip():
-                        continue
-                    if not unique_sentences or sentence != unique_sentences[-1]:
-                        unique_sentences.append(sentence)
-                
-                for i, sentence in enumerate(unique_sentences):
-                    # Format the chunk as a proper SSE event
-                    data_obj = json.dumps({
-                        'text': sentence + (' ' if i < len(unique_sentences) - 1 else ''),
-                        'finished': False
-                    })
+                # Consume the generator synchronously
+                while True:
+                    try:
+                        # Get the next chunk from the stream
+                        chunk = loop.run_until_complete(stream_gen.__anext__())
+                        
+                        # Format each chunk as an SSE event
+                        if 'error' in chunk:
+                            data = json.dumps({'error': chunk['error']})
+                            yield f"event: error\ndata: {data}\n\n"
+                            break
+                        elif chunk.get('finished', False):
+                            data = json.dumps({'finished': True})
+                            yield f"event: done\ndata: {data}\n\n"
+                            break
+                        elif 'text' in chunk:
+                            data = json.dumps({
+                                'text': chunk['text'],
+                                'finished': False
+                            })
+                            yield f"event: chunk\ndata: {data}\n\n"
                     
-                    yield f"event: chunk\ndata: {data_obj}\n\n"
-                    time.sleep(0.2)  # Add delay between sentences for natural reading
-                
-                # Send a completion event
-                yield f"event: done\ndata: {json.dumps({'finished': True})}\n\n"
-                
+                    except StopAsyncIteration:
+                        # End of stream
+                        break
+                    except Exception as e:
+                        # Handle errors in stream processing
+                        error_data = json.dumps({'error': str(e)})
+                        yield f"event: error\ndata: {error_data}\n\n"
+                        break
+            
             except Exception as e:
+                # Handle initialization errors
                 error_data = json.dumps({'error': str(e)})
                 yield f"event: error\ndata: {error_data}\n\n"
+            finally:
+                # Clean up the loop
+                loop.close()
         
-        # Return a properly configured SSE response
+        # Return a properly configured SSE response with the sync generator
         response = StreamingHttpResponse(
-            event_stream(),
+            sync_event_stream(),
             content_type='text/event-stream'
         )
         

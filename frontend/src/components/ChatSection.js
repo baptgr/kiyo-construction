@@ -77,35 +77,26 @@ export default function ChatSection() {
           
           // Parse event type and data
           const eventLines = eventText.split('\n');
-          console.log("Event lines:", eventLines);
           
           const eventType = eventLines.find(line => line.startsWith('event:'))?.substring(6).trim();
           const dataLine = eventLines.find(line => line.startsWith('data:'))?.substring(5).trim();
-          
-          console.log("Parsed SSE event:", { eventType, dataLine });
           
           if (!eventType || !dataLine) continue;
           
           try {
             const data = JSON.parse(dataLine);
-            console.log("Parsed data:", data);
             
             if (eventType === 'chunk' && data.text) {
-              console.log("Received text chunk:", data.text);
               // Update the last message with the new text chunk
               setMessages(prev => {
                 const newMessages = [...prev];
                 const lastMessage = newMessages[newMessages.length - 1];
                 if (lastMessage.sender === 'assistant') {
-                  // Check if this text is already at the end of the message
-                  // to prevent any duplicate content
-                  if (!lastMessage.text.endsWith(data.text)) {
-                    lastMessage.text += data.text;
-                  } else {
-                    console.log("Prevented duplicate content:", data.text);
-                  }
+                  // For the updated streaming, replace the entire text
+                  // instead of appending, since backend now sends cumulative text
+                  lastMessage.text = data.text;
                 }
-                return newMessages;
+                return [...newMessages]; // Create a new array to trigger re-render
               });
             } else if (eventType === 'done') {
               console.log("Received done event");
