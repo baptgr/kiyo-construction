@@ -80,8 +80,9 @@ The goal is to derisk early one the complex parts of the pipeline.
 
 1. **Basic Infrastructure Setup**: Web app deployed with placeholders in front and sample API. 
 
-1. *Agent integration** : Basic chat agent available in front end
-2. *Google Sheets Integration**: Embedding and API connectivity
+2. *Agent integration** : Basic chat agent available in front end
+
+3. *Google Sheets Integration**: Embedding and API connectivity
 
 4. **Document Processing Pipeline**: PDF upload extraction and structured data conversion
 
