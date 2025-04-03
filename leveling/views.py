@@ -8,7 +8,7 @@ import asyncio
 import os
 import time
 from django.http import StreamingHttpResponse, JsonResponse
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import async_to_sync
 from django.views.decorators.csrf import csrf_exempt
 
 from kiyo_agents.construction_agent import ConstructionAgentFactory
@@ -31,7 +31,6 @@ def chat(request):
     Process a chat message and return a response.
     """
     try:
-        # Get message from request
         data = json.loads(request.body)
         message = data.get('message', '')
         conversation_id = data.get('conversation_id', 'default')
@@ -39,11 +38,9 @@ def chat(request):
         if not message:
             return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Initialize agent factory with API key from environment
         factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
         agent = factory.create_agent()
         
-        # Process message (synchronously in this case)
         response = async_to_sync(agent.process_message)(message, conversation_id)
         
         return JsonResponse(response)
@@ -56,10 +53,9 @@ def chat(request):
 @csrf_exempt
 def chat_stream(request):
     """
-    Very simple streaming approach that just streams the agent's response with words
+    Stream the agent's response word by word using SSE
     """
     try:
-        # Get message from request
         data = json.loads(request.body)
         message = data.get('message', '')
         conversation_id = data.get('conversation_id', 'default')
@@ -67,17 +63,13 @@ def chat_stream(request):
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
-        # Define generator function for the streaming response
         def generate_stream():
-            # Send SSE format retry directive
             yield "retry: 1000\n\n"
             
             try:
-                # Initialize the agent
                 factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
                 agent = factory.create_agent()
                 
-                # Get the full response first (no streaming from OpenAI)
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
@@ -85,13 +77,9 @@ def chat_stream(request):
                 finally:
                     loop.close()
                 
-                # Get the text response
                 full_text = response.get('text', '')
-                
-                # Split the text by words for a more natural streaming
                 words = full_text.split(' ')
                 
-                # Stream the words one at a time with spaces
                 for i, word in enumerate(words):
                     if not word:
                         continue
@@ -100,23 +88,18 @@ def chat_stream(request):
                     data = json.dumps({"text": word_chunk, "finished": False})
                     yield f"event: chunk\ndata: {data}\n\n"
                     
-                    # Small delay to make the streaming visible
                     time.sleep(0.05)
                 
-                # Send completion event
                 yield f"event: done\ndata: {json.dumps({'finished': True})}\n\n"
                 
             except Exception as e:
-                # Send error event
                 yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         
-        # Create the streaming response
         response = StreamingHttpResponse(
             generate_stream(),
             content_type='text/event-stream'
         )
         
-        # Set required headers for SSE
         response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         
