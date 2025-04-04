@@ -146,13 +146,44 @@ async def write_sheet_tool(ctx: RunContextWrapper[Any], args: str, token: Option
     Returns:
         Dictionary containing the result of the write operation
     """
+    logger.info("write_sheet_tool called with args: %s", args[:100] + "..." if len(args) > 100 else args)
+    
     # Parse arguments from JSON string
-    params = json.loads(args)
+    try:
+        params = json.loads(args)
+        logger.info("Parsed parameters: %s", json.dumps(params, default=str)[:200] + "..." if len(json.dumps(params, default=str)) > 200 else json.dumps(params, default=str))
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse JSON parameters: %s", str(e))
+        return {"error": f"Invalid JSON parameters: {str(e)}"}
+    
+    # Validate required parameters
+    required_params = ["spreadsheet_id", "range", "values", "is_append"]
+    missing_params = [param for param in required_params if param not in params]
+    if missing_params:
+        logger.error("Missing required parameters: %s", missing_params)
+        return {"error": f"Missing required parameters: {', '.join(missing_params)}"}
+    
+    # Check if values is properly formatted as a 2D array
+    values = params.get("values", [])
+    if not isinstance(values, list):
+        logger.error("Values parameter is not a list: %s", type(values))
+        return {"error": "Values must be a list (2D array)"}
+    
+    if values and not all(isinstance(row, list) for row in values):
+        logger.error("Values is not a 2D array. Some elements are not lists.")
+        return {"error": "Values must be a 2D array (list of lists)"}
     
     # Use provided token or try to get from context
     access_token = token
     if not access_token:
         access_token = get_access_token(ctx)
+        # Log token status (partially masked)
+        if access_token:
+            token_prefix = access_token[:5] if len(access_token) > 5 else ""
+            logger.info("Using access token from context: %s... (length: %d)", token_prefix, len(access_token))
+        else:
+            logger.error("No access token available")
+            return {"error": "Authentication token not available"}
     
     try:
         spreadsheet_id = params.get("spreadsheet_id")
@@ -160,11 +191,15 @@ async def write_sheet_tool(ctx: RunContextWrapper[Any], args: str, token: Option
         values = params.get("values")
         is_append = params.get("is_append", False)
         
+        # Log sheet range details
+        logger.info("Writing to sheet ID: %s, Range: %s, Is append: %s", spreadsheet_id, range_name, is_append)
+        
         # Create Google Sheets service
         sheets_service = GoogleSheetsService(access_token)
         
         if is_append:
             # Append data to the spreadsheet
+            logger.info("Appending data to spreadsheet")
             result = await sheets_service.append_sheet_data(
                 spreadsheet_id, 
                 range_name, 
@@ -172,11 +207,15 @@ async def write_sheet_tool(ctx: RunContextWrapper[Any], args: str, token: Option
             )
         else:
             # Write data to the spreadsheet
+            logger.info("Writing data to spreadsheet")
             result = await sheets_service.write_sheet_data(
                 spreadsheet_id, 
                 range_name, 
                 values
             )
+        
+        # Log success details
+        logger.info("Write operation successful: %s", result)
         
         # Return success message
         return {
@@ -185,6 +224,7 @@ async def write_sheet_tool(ctx: RunContextWrapper[Any], args: str, token: Option
             "updated_cells": result.get("updatedCells", 0)
         }
     except Exception as e:
+        logger.error("Failed to write to sheet: %s", str(e), exc_info=True)
         return {
             "error": f"Failed to write to sheet: {str(e)}"
         }

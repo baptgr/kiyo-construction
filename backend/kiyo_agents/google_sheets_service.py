@@ -2,6 +2,7 @@ import os
 import json
 import httpx
 from typing import List, Dict, Any, Optional
+import logging
 
 class GoogleSheetsService:
     """
@@ -73,7 +74,22 @@ class GoogleSheetsService:
             Response from the update API call
         """
         try:
+            # Debug logging for request parameters
+            logger = logging.getLogger(__name__)
+            logger.info(f"Attempting to write to spreadsheet ID: {spreadsheet_id}")
+            logger.info(f"Range: {range_name}")
+            logger.info(f"Value input option: {value_input_option}")
+            logger.info(f"Data structure: {type(values)}, rows: {len(values)}, first row type: {type(values[0]) if values and len(values) > 0 else 'N/A'}")
+            logger.info(f"First few values: {str(values)[:200]}...")
+            
+            # Check token validity (without logging the full token)
+            token_prefix = self.access_token[:5] if self.access_token else "None"
+            token_length = len(self.access_token) if self.access_token else 0
+            logger.info(f"Using access token: {token_prefix}... (length: {token_length})")
+            
             url = f"{self.base_url}/{spreadsheet_id}/values/{range_name}"
+            logger.info(f"Request URL: {url}")
+            
             body = {
                 "values": values,
                 "majorDimension": "ROWS"
@@ -84,15 +100,25 @@ class GoogleSheetsService:
             }
             
             async with httpx.AsyncClient() as client:
+                logger.info("Sending request to Google Sheets API...")
                 response = await client.put(
                     url, 
                     headers=self.headers, 
                     params=params,
                     json=body
                 )
+                
+                logger.info(f"Response status: {response.status_code}")
+                if not response.is_success:
+                    response_text = response.text
+                    logger.error(f"Error response from Google Sheets API: {response_text}")
+                
                 response.raise_for_status()
-                return response.json()
+                result = response.json()
+                logger.info(f"Write successful. Updated cells: {result.get('updatedCells', 0)}")
+                return result
         except Exception as e:
+            logger.error(f"Error writing to Google Sheet: {str(e)}", exc_info=True)
             raise Exception(f"Error writing to Google Sheet: {str(e)}")
     
     async def append_sheet_data(
@@ -115,7 +141,22 @@ class GoogleSheetsService:
             Response from the append API call
         """
         try:
+            # Debug logging for request parameters
+            logger = logging.getLogger(__name__)
+            logger.info(f"Attempting to append to spreadsheet ID: {spreadsheet_id}")
+            logger.info(f"Range: {range_name}")
+            logger.info(f"Value input option: {value_input_option}")
+            logger.info(f"Data structure: {type(values)}, rows: {len(values)}, first row type: {type(values[0]) if values and len(values) > 0 else 'N/A'}")
+            logger.info(f"First few values: {str(values)[:200]}...")
+            
+            # Check token validity (without logging the full token)
+            token_prefix = self.access_token[:5] if self.access_token else "None"
+            token_length = len(self.access_token) if self.access_token else 0
+            logger.info(f"Using access token: {token_prefix}... (length: {token_length})")
+            
             url = f"{self.base_url}/{spreadsheet_id}/values/{range_name}:append"
+            logger.info(f"Request URL: {url}")
+            
             body = {
                 "values": values,
                 "majorDimension": "ROWS"
@@ -127,13 +168,23 @@ class GoogleSheetsService:
             }
             
             async with httpx.AsyncClient() as client:
+                logger.info("Sending append request to Google Sheets API...")
                 response = await client.post(
                     url, 
                     headers=self.headers, 
                     params=params,
                     json=body
                 )
+                
+                logger.info(f"Response status: {response.status_code}")
+                if not response.is_success:
+                    response_text = response.text
+                    logger.error(f"Error response from Google Sheets API: {response_text}")
+                
                 response.raise_for_status()
-                return response.json()
+                result = response.json()
+                logger.info(f"Append successful. Updated cells: {result.get('updates', {}).get('updatedCells', 0)}")
+                return result
         except Exception as e:
+            logger.error(f"Error appending to Google Sheet: {str(e)}", exc_info=True)
             raise Exception(f"Error appending to Google Sheet: {str(e)}") 

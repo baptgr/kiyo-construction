@@ -199,6 +199,18 @@ export default function SpreadsheetSection() {
               variant="text" 
               color="primary" 
               size="small"
+              onClick={() => {
+                navigator.clipboard.writeText(spreadsheetId);
+                // Optional: You could add a state here to show a brief "Copied!" message
+              }}
+              sx={{ mr: 1 }}
+            >
+              GET SPREADSHEET ID
+            </Button>
+            <Button 
+              variant="text" 
+              color="primary" 
+              size="small"
               onClick={createNewSpreadsheet}
               sx={{ mr: 1 }}
             >
