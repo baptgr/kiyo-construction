@@ -10,8 +10,12 @@ import time
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from asgiref.sync import async_to_sync, sync_to_async
 from django.views.decorators.csrf import csrf_exempt
+import logging
+import traceback
 
 from kiyo_agents.construction_agent import ConstructionAgentFactory
+
+logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -35,12 +39,16 @@ def chat(request):
         data = json.loads(request.body)
         message = data.get('message', '')
         conversation_id = data.get('conversation_id', 'default')
+        google_access_token = data.get('google_access_token')
         
         if not message:
             return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Initialize agent factory with API key from environment
-        factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
+        factory = ConstructionAgentFactory(
+            api_key=os.environ.get('OPENAI_API_KEY'),
+            google_access_token=google_access_token
+        )
         agent = factory.create_agent()
         
         # Process message (synchronously in this case)
@@ -49,7 +57,7 @@ def chat(request):
         return JsonResponse(response)
     except Exception as e:
         # Log the actual error but return generic message
-        print(f"API error: {str(e)}")
+        logger.error(f"API error: {str(e)}", exc_info=True)
         return JsonResponse({'error': 'Error, something went wrong'}, status=500)
 
 
@@ -65,6 +73,7 @@ def chat_stream(request):
         data = json.loads(request.body)
         message = data.get('message', '')
         conversation_id = data.get('conversation_id', 'default')
+        google_access_token = data.get('google_access_token')
         
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
@@ -79,8 +88,11 @@ def chat_stream(request):
             asyncio.set_event_loop(loop)
             
             try:
-                # Initialize agent
-                factory = ConstructionAgentFactory(api_key=os.environ.get('OPENAI_API_KEY'))
+                # Initialize agent with Google access token
+                factory = ConstructionAgentFactory(
+                    api_key=os.environ.get('OPENAI_API_KEY'),
+                    google_access_token=google_access_token
+                )
                 agent = factory.create_agent()
                 
                 # Create a single async function that handles the entire streaming process

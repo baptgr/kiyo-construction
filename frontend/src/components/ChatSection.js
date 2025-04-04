@@ -1,5 +1,6 @@
 import { Box, Paper, Typography } from '@mui/material';
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 
@@ -7,6 +8,7 @@ export default function ChatSection() {
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState(null);
+  const { data: session } = useSession();
 
   // Send a message to the API with streaming
   const sendMessage = async (messageText) => {
@@ -32,13 +34,19 @@ export default function ChatSection() {
       
       setMessages(prev => [...prev, assistantMessage]);
       
+      // Get Google access token from session
+      const googleAccessToken = session?.accessToken || null;
+      
       // Call the streaming endpoint
-      const response = await fetch('http://localhost:8000/api/chat/stream/', {
+      const response = await fetch('/api/agent/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message: messageText })
+        body: JSON.stringify({ 
+          message: messageText,
+          google_access_token: googleAccessToken
+        })
       });
       
       if (!response.ok) {
@@ -49,13 +57,11 @@ export default function ChatSection() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let debugOutput = [];
       
       while (true) {
         const { value, done } = await reader.read();
         
         if (done) {
-          console.log("Streaming complete. Debug output:", debugOutput);
           setIsTyping(false);
           break;
         }
@@ -63,10 +69,6 @@ export default function ChatSection() {
         // Decode the chunk and add to buffer
         const newText = decoder.decode(value, { stream: true });
         buffer += newText;
-        
-        // Log the raw chunk for debugging
-        console.log("Raw SSE chunk received:", newText);
-        debugOutput.push(newText);
         
         // Process complete SSE events in the buffer
         const lines = buffer.split('\n\n');
@@ -99,7 +101,6 @@ export default function ChatSection() {
                 return [...newMessages]; // Create a new array to trigger re-render
               });
             } else if (eventType === 'done') {
-              console.log("Received done event");
               setIsTyping(false);
             } else if (eventType === 'error' && data.error) {
               console.error("Received error event:", data.error);
