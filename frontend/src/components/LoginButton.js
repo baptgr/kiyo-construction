@@ -1,20 +1,17 @@
 'use client';
 
-import { Button, Typography, Box } from '@mui/material';
+import { Button, Avatar, Chip, Box, Menu, MenuItem, Typography } from '@mui/material';
 import { signIn, signOut } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 export default function LoginButton() {
   const { data: session, status } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
   
-  useEffect(() => {
-    console.log('Session status:', status);
-    console.log('Session data:', session);
-  }, [status, session]);
-
-  const handleLogin = async () => {
+  const handleLoginClick = async () => {
     setIsLoading(true);
     try {
       await signIn('google', { callbackUrl: '/' });
@@ -24,8 +21,17 @@ export default function LoginButton() {
     }
   };
 
+  const handleUserMenuClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
   const handleLogout = async () => {
     setIsLoading(true);
+    handleClose();
     try {
       await signOut({ callbackUrl: '/' });
     } catch (error) {
@@ -34,31 +40,78 @@ export default function LoginButton() {
     }
   };
 
+  if (status === 'loading') {
+    return <Chip 
+      label="Authenticating..." 
+      color="default" 
+      size="medium" 
+      sx={{ 
+        borderRadius: '16px',
+        px: 1
+      }}
+    />;
+  }
+
+  if (status === 'authenticated' && session?.user) {
+    return (
+      <Box>
+        <Chip
+          avatar={
+            <Avatar 
+              alt={session.user.name || 'User'} 
+              src={session.user.image || ''} 
+              sx={{ width: 24, height: 24 }}
+            />
+          }
+          label={session.user.name || 'User'}
+          onClick={handleUserMenuClick}
+          color="primary"
+          variant="outlined"
+          sx={{ 
+            borderRadius: '16px',
+            px: 1,
+            cursor: 'pointer',
+            '&:hover': {
+              backgroundColor: 'rgba(25, 118, 210, 0.04)'
+            }
+          }}
+        />
+        
+        <Menu
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleClose}
+          MenuListProps={{
+            'aria-labelledby': 'user-menu-button',
+          }}
+        >
+          <MenuItem disabled>
+            <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+              {session.user.email}
+            </Typography>
+          </MenuItem>
+          <MenuItem onClick={handleLogout} disabled={isLoading}>
+            Logout
+          </MenuItem>
+        </Menu>
+      </Box>
+    );
+  }
+
   return (
-    <Box>
-      <Typography variant="caption" sx={{ display: 'block', mb: 1 }}>
-        Status: {status}
-      </Typography>
-      
-      {status === 'authenticated' ? (
-        <Button 
-          variant="outlined" 
-          color="primary" 
-          onClick={handleLogout}
-          disabled={isLoading}
-        >
-          Logout
-        </Button>
-      ) : (
-        <Button 
-          variant="contained" 
-          color="primary" 
-          onClick={handleLogin}
-          disabled={isLoading}
-        >
-          Sign in with Google
-        </Button>
-      )}
-    </Box>
+    <Button 
+      variant="contained" 
+      color="primary" 
+      onClick={handleLoginClick}
+      disabled={isLoading}
+      sx={{ 
+        borderRadius: '20px',
+        px: 2,
+        fontWeight: 500,
+        textTransform: 'none'
+      }}
+    >
+      Sign in with Google
+    </Button>
   );
 } 
