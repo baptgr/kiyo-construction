@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import Cookies from 'js-cookie';
 
 const SpreadsheetContext = createContext();
 
@@ -11,6 +12,25 @@ export function SpreadsheetProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [attempts, setAttempts] = useState(0);
+
+  // Custom setter for spreadsheetId that also updates the cookie
+  const updateSpreadsheetId = (id) => {
+    setSpreadsheetId(id);
+    // Store in cookie for server components to access
+    if (id) {
+      Cookies.set('spreadsheetId', id, { expires: 7 }); // 7 days expiry
+    } else {
+      Cookies.remove('spreadsheetId');
+    }
+  };
+
+  // Load from cookie on initial render
+  useEffect(() => {
+    const savedId = Cookies.get('spreadsheetId');
+    if (savedId) {
+      setSpreadsheetId(savedId);
+    }
+  }, []);
 
   // Create a spreadsheet when user authenticates
   useEffect(() => {
@@ -44,7 +64,7 @@ export function SpreadsheetProvider({ children }) {
           }
           
           const data = await response.json();
-          setSpreadsheetId(data.spreadsheetId);
+          updateSpreadsheetId(data.spreadsheetId);
         } catch (err) {
           setError(err.message || 'Failed to create spreadsheet');
         } finally {
@@ -59,7 +79,7 @@ export function SpreadsheetProvider({ children }) {
   // Clear spreadsheet ID on logout
   useEffect(() => {
     if (status === 'unauthenticated') {
-      setSpreadsheetId(null);
+      updateSpreadsheetId(null);
       setAttempts(0);
       setError(null);
     }
@@ -70,14 +90,14 @@ export function SpreadsheetProvider({ children }) {
     if (status === 'authenticated' && !isLoading) {
       setAttempts(0); // Reset attempts
       setError(null);  // Clear any errors
-      setSpreadsheetId(null); // Clear existing spreadsheet ID to force new creation
+      updateSpreadsheetId(null); // Clear existing spreadsheet ID to force new creation
     }
   };
 
   // Function to create a new spreadsheet
   const createNewSpreadsheet = () => {
     if (status === 'authenticated' && !isLoading) {
-      setSpreadsheetId(null); // Clear existing spreadsheet ID
+      updateSpreadsheetId(null); // Clear existing spreadsheet ID
       setAttempts(0); // Reset attempts
       setError(null); // Clear any errors
     }
@@ -91,7 +111,7 @@ export function SpreadsheetProvider({ children }) {
 
   const value = {
     spreadsheetId,
-    setSpreadsheetId,
+    setSpreadsheetId: updateSpreadsheetId,
     isLoading,
     error,
     retryCreateSpreadsheet,

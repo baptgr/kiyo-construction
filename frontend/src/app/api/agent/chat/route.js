@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/app/auth';
+import { cookies } from 'next/headers';
 
 export async function POST(request) {
   try {
@@ -12,11 +13,21 @@ export async function POST(request) {
     // Get Google access token from the session if not provided in the request
     const googleAccessToken = data.google_access_token || session?.accessToken || null;
     
+    // Get spreadsheet ID from request or from cookies
+    let spreadsheetId;
+    try {
+      spreadsheetId = data.spreadsheet_id || cookies().get('spreadsheetId')?.value || null;
+    } catch (error) {
+      console.error('Error accessing cookies:', error);
+      spreadsheetId = data.spreadsheet_id || null;
+    }
+    
     // Prepare the request to the backend
     const backendRequest = {
       message: data.message,
       conversation_id: data.conversation_id || 'default',
-      google_access_token: googleAccessToken
+      google_access_token: googleAccessToken,
+      spreadsheet_id: spreadsheetId
     };
     
     // Forward the request to the backend

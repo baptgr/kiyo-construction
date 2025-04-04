@@ -1,15 +1,17 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import { useSpreadsheet } from '@/context/SpreadsheetContext';
 
 /**
  * Send a message to the agent and get a response
  * @param {string} message - The message to send to the agent
  * @param {string} conversationId - Optional conversation ID for context
  * @param {string} googleAccessToken - Optional Google access token for Sheets access
+ * @param {string} spreadsheetId - Optional spreadsheet ID to use for the task
  * @returns {Promise<Object>} - The agent's response
  */
-export async function sendMessageToAgent(message, conversationId = 'default', googleAccessToken = null) {
+export async function sendMessageToAgent(message, conversationId = 'default', googleAccessToken = null, spreadsheetId = null) {
   try {
     const response = await fetch('/api/agent/chat', {
       method: 'POST',
@@ -20,6 +22,7 @@ export async function sendMessageToAgent(message, conversationId = 'default', go
         message,
         conversation_id: conversationId,
         google_access_token: googleAccessToken,
+        spreadsheet_id: spreadsheetId
       }),
     });
     
@@ -41,37 +44,34 @@ export async function sendMessageToAgent(message, conversationId = 'default', go
  */
 export function useAgentApi() {
   const { data: session } = useSession();
+  const { spreadsheetId } = useSpreadsheet();
   
   const sendMessage = async (message, conversationId = 'default') => {
     // Extract Google access token from session if available
     const googleAccessToken = session?.accessToken || null;
     
-    return sendMessageToAgent(message, conversationId, googleAccessToken);
+    return sendMessageToAgent(message, conversationId, googleAccessToken, spreadsheetId);
   };
   
   return {
     sendMessage,
     isAuthenticated: !!session,
     googleAccessToken: session?.accessToken,
+    spreadsheetId
   };
 }
 
 /**
- * Create an event source for streaming responses from the agent
+ * Send a streaming message request to the agent API
+ * This uses fetch's streaming capability instead of EventSource
  * @param {string} message - The message to send to the agent
  * @param {string} conversationId - Optional conversation ID for context
  * @param {string} googleAccessToken - Optional Google access token for Sheets access
- * @returns {EventSource} - The event source for streaming responses
+ * @param {string} spreadsheetId - Optional spreadsheet ID to use for the task
+ * @returns {Promise<Response>} - The streaming response object
  */
-export function createAgentStreamSource(message, conversationId = 'default', googleAccessToken = null) {
-  // Create the URL with query parameters
-  const url = '/api/agent/stream';
-  
-  // Create the event source
-  const eventSource = new EventSource(url);
-  
-  // Send the message as a POST request
-  fetch(url, {
+export async function getAgentStreamResponse(message, conversationId = 'default', googleAccessToken = null, spreadsheetId = null) {
+  return fetch('/api/agent/chat/stream', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -80,32 +80,29 @@ export function createAgentStreamSource(message, conversationId = 'default', goo
       message,
       conversation_id: conversationId,
       google_access_token: googleAccessToken,
+      spreadsheet_id: spreadsheetId
     }),
-  }).catch(error => {
-    console.error('Error initiating stream:', error);
-    eventSource.close();
   });
-  
-  return eventSource;
 }
 
 /**
- * Hook to use agent streaming API with current session
- * Automatically includes Google access token from session when available
+ * Hook to use agent streaming capabilities with current session
  */
 export function useAgentStreamApi() {
   const { data: session } = useSession();
+  const { spreadsheetId } = useSpreadsheet();
   
-  const createStreamSource = (message, conversationId = 'default') => {
+  const getStreamResponse = async (message, conversationId = 'default') => {
     // Extract Google access token from session if available
     const googleAccessToken = session?.accessToken || null;
     
-    return createAgentStreamSource(message, conversationId, googleAccessToken);
+    return getAgentStreamResponse(message, conversationId, googleAccessToken, spreadsheetId);
   };
   
   return {
-    createStreamSource,
+    getStreamResponse,
     isAuthenticated: !!session,
     googleAccessToken: session?.accessToken,
+    spreadsheetId
   };
 } 

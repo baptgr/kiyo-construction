@@ -1,6 +1,8 @@
 import { Box, Paper, Typography } from '@mui/material';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSpreadsheet } from '@/context/SpreadsheetContext';
+import { useAgentStreamApi } from '@/utils/agentAPI';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 
@@ -9,6 +11,8 @@ export default function ChatSection() {
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState(null);
   const { data: session } = useSession();
+  const { spreadsheetId } = useSpreadsheet();
+  const { getStreamResponse } = useAgentStreamApi();
 
   // Send a message to the API with streaming
   const sendMessage = async (messageText) => {
@@ -23,6 +27,7 @@ export default function ChatSection() {
     
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
+    setError(null);
     
     try {
       // Create an empty assistant message that we'll update as we receive chunks
@@ -34,26 +39,14 @@ export default function ChatSection() {
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Get Google access token from session
-      const googleAccessToken = session?.accessToken || null;
-      
-      // Call the streaming endpoint
-      const response = await fetch('/api/agent/chat/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          message: messageText,
-          google_access_token: googleAccessToken
-        })
-      });
+      // Get the streaming response
+      const response = await getStreamResponse(messageText);
       
       if (!response.ok) {
         throw new Error(`API responded with status ${response.status}`);
       }
       
-      // Use the EventSource API to handle SSE properly
+      // Use the stream reader to process chunks
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
