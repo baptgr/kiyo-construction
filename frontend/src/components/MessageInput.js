@@ -31,7 +31,7 @@ export default function MessageInput({ onSendMessage, isTyping }) {
       }}
     >
       <TextareaAutosize
-        placeholder="Share your bids..."
+        placeholder="Message your agent..."
         value={inputMessage}
         onChange={(e) => setInputMessage(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -41,15 +41,16 @@ export default function MessageInput({ onSendMessage, isTyping }) {
         style={{
           width: '100%',
           resize: 'none',
-          padding: '8px 12px',
-          borderRadius: '4px',
+          padding: '12px',
+          borderRadius: '3px',
           border: '1px solid var(--input-border)',
           backgroundColor: 'var(--input-background)',
           color: 'var(--color-text-primary)',
           fontSize: '0.875rem',
           lineHeight: '1.5',
           fontFamily: 'inherit',
-          outline: 'none'
+          outline: 'none',
+          transition: 'border-color 0.2s ease',
         }}
       />
       <IconButton 
@@ -57,28 +58,27 @@ export default function MessageInput({ onSendMessage, isTyping }) {
         type="submit" 
         disabled={!inputMessage.trim() || isTyping}
         sx={{ 
-          bgcolor: 'var(--color-surface)', 
-          color: 'var(--color-text-primary)',
-          border: '1px solid',
-          borderColor: 'var(--input-border)',
-          borderRadius: '4px',
-          padding: '6px',
+          bgcolor: 'transparent', 
+          color: 'var(--color-text-secondary)',
+          border: 'none',
+          borderRadius: '3px',
+          padding: '8px',
           alignSelf: 'flex-end',
           height: '36px',
           width: '36px',
           flexShrink: 0,
+          transition: 'all 0.2s ease',
           '&:hover': {
             bgcolor: 'var(--color-surface)',
-            borderColor: 'var(--color-border)',
+            color: 'var(--color-text-primary)',
           },
           '&.Mui-disabled': {
-            bgcolor: 'var(--color-surface)',
-            color: 'var(--color-text-secondary)',
-            opacity: 0.7
+            opacity: 0.5,
+            color: 'var(--color-text-secondary)'
           }
         }}
       >
-        <SendIcon />
+        <SendIcon sx={{ fontSize: 20 }} />
       </IconButton>
     </Box>
   );

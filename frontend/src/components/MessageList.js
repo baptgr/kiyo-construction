@@ -41,7 +41,7 @@ export default function MessageList({ messages, isTyping, error }) {
               fontSize: '0.9375rem'
             }}
           >
-            Welcome to the Kiyo Construction Assistant
+            Welcome to the Construction Assistant
           </Typography>
           <Typography 
             variant="body2" 
@@ -60,47 +60,21 @@ export default function MessageList({ messages, isTyping, error }) {
             <Message key={index} message={message} />
           ))}
           {isTyping && (
-            <ListItem sx={{ p: 1, display: 'flex', alignItems: 'flex-start' }}>
-              <Avatar 
+            <ListItem sx={{ p: 1 }}>
+              <Typography 
+                variant="caption" 
                 sx={{ 
-                  mr: 1.5, 
-                  mt: 0.5, 
-                  bgcolor: 'var(--color-surface)', 
-                  color: 'var(--color-text-primary)',
-                  width: 28, 
-                  height: 28,
-                  fontSize: '0.875rem',
-                  fontWeight: 500
-                }}
-              >
-                K
-              </Avatar>
-              <Box 
-                sx={{ 
-                  p: 1.5,
-                  borderRadius: '4px',
-                  bgcolor: 'var(--message-background)',
+                  color: 'var(--color-text-secondary)',
+                  fontSize: '0.75rem',
+                  fontStyle: 'italic',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1
                 }}
               >
-                <CircularProgress 
-                  size={14} 
-                  sx={{ 
-                    color: 'var(--color-text-secondary)'
-                  }} 
-                />
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    color: 'var(--color-text-secondary)',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  Typing...
-                </Typography>
-              </Box>
+                Your agent is typing
+                <CircularProgress size={8} sx={{ color: 'inherit' }} />
+              </Typography>
             </ListItem>
           )}
           <div ref={messagesEndRef} />
