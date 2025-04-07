@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Avatar, Chip, Box, Menu, MenuItem, Typography } from '@mui/material';
+import { Button, Avatar, Box, Menu, MenuItem, Typography } from '@mui/material';
 import { signIn, signOut } from 'next-auth/react';
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
@@ -41,41 +41,50 @@ export default function LoginButton() {
   };
 
   if (status === 'loading') {
-    return <Chip 
-      label="Authenticating..." 
-      color="default" 
-      size="medium" 
-      sx={{ 
-        borderRadius: '16px',
-        px: 1
-      }}
-    />;
+    return (
+      <Button 
+        disabled
+        sx={{ 
+          color: 'var(--color-text-secondary)',
+          fontSize: '0.875rem',
+          textTransform: 'none',
+          minWidth: 'auto'
+        }}
+      >
+        Loading...
+      </Button>
+    );
   }
 
   if (status === 'authenticated' && session?.user) {
     return (
       <Box>
-        <Chip
-          avatar={
-            <Avatar 
-              alt={session.user.name || 'User'} 
-              src={session.user.image || ''} 
-              sx={{ width: 24, height: 24 }}
-            />
-          }
-          label={session.user.name || 'User'}
+        <Button
           onClick={handleUserMenuClick}
-          color="primary"
-          variant="outlined"
           sx={{ 
-            borderRadius: '16px',
-            px: 1,
-            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: 'var(--color-text-primary)',
+            textTransform: 'none',
+            fontSize: '0.875rem',
+            fontWeight: 400,
             '&:hover': {
-              backgroundColor: 'rgba(25, 118, 210, 0.04)'
+              bgcolor: 'var(--color-surface)'
             }
           }}
-        />
+        >
+          <Avatar 
+            alt={session.user.name || 'User'} 
+            src={session.user.image || ''} 
+            sx={{ 
+              width: 24, 
+              height: 24,
+              fontSize: '0.875rem'
+            }}
+          />
+          <span>{session.user.name || 'User'}</span>
+        </Button>
         
         <Menu
           anchorEl={anchorEl}
@@ -84,14 +93,41 @@ export default function LoginButton() {
           MenuListProps={{
             'aria-labelledby': 'user-menu-button',
           }}
+          sx={{
+            '& .MuiPaper-root': {
+              borderRadius: '4px',
+              border: '1px solid',
+              borderColor: 'var(--color-border)',
+              boxShadow: 'var(--shadow-md)',
+              bgcolor: 'var(--color-background)',
+              minWidth: '200px'
+            }
+          }}
         >
-          <MenuItem disabled>
-            <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+          <MenuItem disabled sx={{ opacity: 0.7 }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'var(--color-text-secondary)',
+                fontSize: '0.8125rem'
+              }}
+            >
               {session.user.email}
             </Typography>
           </MenuItem>
-          <MenuItem onClick={handleLogout} disabled={isLoading}>
-            Logout
+          <MenuItem 
+            onClick={handleLogout} 
+            disabled={isLoading}
+            sx={{
+              color: 'var(--color-text-primary)',
+              fontSize: '0.875rem',
+              py: 1,
+              '&:hover': {
+                bgcolor: 'var(--color-surface)'
+              }
+            }}
+          >
+            Sign out
           </MenuItem>
         </Menu>
       </Box>
@@ -100,18 +136,27 @@ export default function LoginButton() {
 
   return (
     <Button 
-      variant="contained" 
-      color="primary" 
+      variant="text" 
       onClick={handleLoginClick}
       disabled={isLoading}
       sx={{ 
-        borderRadius: '20px',
+        color: 'var(--color-text-primary)',
+        bgcolor: 'var(--color-surface)',
+        border: '1px solid',
+        borderColor: 'var(--color-border)',
+        borderRadius: '4px',
         px: 2,
-        fontWeight: 500,
-        textTransform: 'none'
+        py: 1,
+        fontSize: '0.875rem',
+        fontWeight: 400,
+        textTransform: 'none',
+        '&:hover': {
+          bgcolor: 'var(--color-surface)',
+          borderColor: 'var(--color-text-secondary)'
+        }
       }}
     >
-      Sign in with Google
+      Sign in
     </Button>
   );
 } 

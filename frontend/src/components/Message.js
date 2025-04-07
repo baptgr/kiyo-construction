@@ -1,4 +1,4 @@
-import { Box, Paper, Typography, Avatar, ListItem } from '@mui/material';
+import { Box, Typography, Avatar, ListItem } from '@mui/material';
 
 export default function Message({ message }) {
   const isUser = message.sender === 'user';
@@ -10,48 +10,53 @@ export default function Message({ message }) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: isUser ? 'flex-end' : 'flex-start',
-        mb: 1
+        mb: 0.5
       }}
     >
       <Box sx={{ 
         display: 'flex', 
         alignItems: 'flex-start',
-        maxWidth: '85%' 
+        maxWidth: '85%',
+        gap: 1.5
       }}>
         {!isUser && (
           <Avatar 
             sx={{ 
-              mr: 1, 
               mt: 0.5, 
-              bgcolor: 'primary.main', 
-              width: 32, 
-              height: 32 
+              bgcolor: 'var(--color-surface)',
+              color: 'var(--color-text-primary)',
+              width: 28,
+              height: 28,
+              fontSize: '0.875rem',
+              fontWeight: 500
             }}
           >
             K
           </Avatar>
         )}
-        <Paper 
+        <Box 
           sx={{ 
-            p: 1.5, 
-            borderRadius: 2,
-            bgcolor: isUser ? 'primary.main' : 'background.paper',
-            color: isUser ? 'white' : 'text.primary',
-            boxShadow: 1
+            p: 1.5,
+            borderRadius: '4px',
+            bgcolor: isUser ? 'var(--color-surface)' : 'var(--message-background)',
+            color: 'var(--color-text-primary)',
+            fontSize: '0.875rem',
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap'
           }}
         >
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-            {message.text}
-          </Typography>
-        </Paper>
+          {message.text}
+        </Box>
         {isUser && (
           <Avatar 
             sx={{ 
-              ml: 1, 
-              mt: 0.5, 
-              bgcolor: 'grey.400', 
-              width: 32, 
-              height: 32 
+              mt: 0.5,
+              bgcolor: 'var(--color-surface)',
+              color: 'var(--color-text-primary)',
+              width: 28,
+              height: 28,
+              fontSize: '0.875rem',
+              fontWeight: 500
             }}
           >
             U

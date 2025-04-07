@@ -19,8 +19,8 @@ export default function MessageList({ messages, isTyping, error }) {
         p: 2,
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: 'grey.50',
-        gap: 1,
+        bgcolor: 'var(--chat-background)',
+        gap: 2,
         overflow: 'auto'
       }}
     >
@@ -30,13 +30,28 @@ export default function MessageList({ messages, isTyping, error }) {
           display: 'flex', 
           flexDirection: 'column', 
           justifyContent: 'center', 
-          alignItems: 'center' 
+          alignItems: 'center',
+          color: 'var(--color-text-secondary)'
         }}>
-          <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', mb: 2 }}>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              textAlign: 'center', 
+              mb: 1,
+              fontSize: '0.9375rem'
+            }}
+          >
             Welcome to the Kiyo Construction Assistant
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-            Ask me anything about construction materials, techniques, or project planning.
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              textAlign: 'center',
+              fontSize: '0.875rem',
+              opacity: 0.8
+            }}
+          >
+            Share your recent bids to start the leveling process
           </Typography>
         </Box>
       ) : (
@@ -48,30 +63,44 @@ export default function MessageList({ messages, isTyping, error }) {
             <ListItem sx={{ p: 1, display: 'flex', alignItems: 'flex-start' }}>
               <Avatar 
                 sx={{ 
-                  mr: 1, 
+                  mr: 1.5, 
                   mt: 0.5, 
-                  bgcolor: 'primary.main', 
-                  width: 32, 
-                  height: 32 
+                  bgcolor: 'var(--color-surface)', 
+                  color: 'var(--color-text-primary)',
+                  width: 28, 
+                  height: 28,
+                  fontSize: '0.875rem',
+                  fontWeight: 500
                 }}
               >
                 K
               </Avatar>
-              <Paper 
+              <Box 
                 sx={{ 
                   p: 1.5,
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
-                  boxShadow: 1,
+                  borderRadius: '4px',
+                  bgcolor: 'var(--message-background)',
                   display: 'flex',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  gap: 1
                 }}
               >
-                <CircularProgress size={16} sx={{ mr: 1 }} />
-                <Typography variant="body2" color="text.secondary">
+                <CircularProgress 
+                  size={14} 
+                  sx={{ 
+                    color: 'var(--color-text-secondary)'
+                  }} 
+                />
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: 'var(--color-text-secondary)',
+                    fontSize: '0.875rem'
+                  }}
+                >
                   Typing...
                 </Typography>
-              </Paper>
+              </Box>
             </ListItem>
           )}
           <div ref={messagesEndRef} />
@@ -80,20 +109,28 @@ export default function MessageList({ messages, isTyping, error }) {
       
       {error && (
         <Paper 
+          elevation={0}
           sx={{ 
             p: 2, 
             mt: 2, 
             width: '100%', 
-            bgcolor: '#fff8f8',
-            borderLeft: '4px solid',
-            borderColor: 'error.main',
+            bgcolor: '#FFF4F4',
+            border: '1px solid',
+            borderColor: '#FFA5A5',
+            borderRadius: '4px',
             position: 'relative',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
           }}
         >
-          <Typography variant="body2" color="error.main">
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: '#D64545',
+              fontSize: '0.875rem'
+            }}
+          >
             Error: {error}
           </Typography>
           <Box 
@@ -105,17 +142,18 @@ export default function MessageList({ messages, isTyping, error }) {
               cursor: 'pointer',
               ml: 2,
               p: 0.5,
-              borderRadius: '50%',
+              borderRadius: '4px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: '#D64545',
               '&:hover': {
-                bgcolor: 'rgba(0, 0, 0, 0.04)'
+                bgcolor: 'rgba(214, 69, 69, 0.05)'
               }
             }}
             aria-label="Close error message"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>

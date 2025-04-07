@@ -1,4 +1,4 @@
-import { Box, TextField, IconButton } from '@mui/material';
+import { Box, IconButton, TextareaAutosize } from '@mui/material';
 import SendIcon from '../components/SendIcon';
 import { useState } from 'react';
 
@@ -13,51 +13,73 @@ export default function MessageInput({ onSendMessage, isTyping }) {
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
   return (
     <Box 
       component="form" 
       onSubmit={handleSubmit}
       sx={{ 
-        p: 2, 
-        borderTop: 1, 
-        borderColor: 'grey.100',
-        bgcolor: 'background.paper'
+        display: 'flex',
+        gap: 1,
+        position: 'relative'
       }}
     >
-      <Box sx={{ display: 'flex', gap: 1 }}>
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="Ask about construction..."
-          size="small"
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          disabled={isTyping}
-          sx={{ 
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 3,
-            }
-          }}
-        />
-        <IconButton 
-          color="primary" 
-          type="submit" 
-          disabled={!inputMessage.trim() || isTyping}
-          sx={{ 
-            bgcolor: 'primary.main', 
-            color: 'white',
-            '&:hover': {
-              bgcolor: 'primary.dark',
-            },
-            '&.Mui-disabled': {
-              bgcolor: 'grey.300',
-              color: 'grey.500',
-            }
-          }}
-        >
-          <SendIcon />
-        </IconButton>
-      </Box>
+      <TextareaAutosize
+        placeholder="Share your bids..."
+        value={inputMessage}
+        onChange={(e) => setInputMessage(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={isTyping}
+        autoComplete="off"
+        maxRows={6}
+        style={{
+          width: '100%',
+          resize: 'none',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          border: '1px solid var(--input-border)',
+          backgroundColor: 'var(--input-background)',
+          color: 'var(--color-text-primary)',
+          fontSize: '0.875rem',
+          lineHeight: '1.5',
+          fontFamily: 'inherit',
+          outline: 'none'
+        }}
+      />
+      <IconButton 
+        color="primary" 
+        type="submit" 
+        disabled={!inputMessage.trim() || isTyping}
+        sx={{ 
+          bgcolor: 'var(--color-surface)', 
+          color: 'var(--color-text-primary)',
+          border: '1px solid',
+          borderColor: 'var(--input-border)',
+          borderRadius: '4px',
+          padding: '6px',
+          alignSelf: 'flex-end',
+          height: '36px',
+          width: '36px',
+          flexShrink: 0,
+          '&:hover': {
+            bgcolor: 'var(--color-surface)',
+            borderColor: 'var(--color-border)',
+          },
+          '&.Mui-disabled': {
+            bgcolor: 'var(--color-surface)',
+            color: 'var(--color-text-secondary)',
+            opacity: 0.7
+          }
+        }}
+      >
+        <SendIcon />
+      </IconButton>
     </Box>
   );
 } 

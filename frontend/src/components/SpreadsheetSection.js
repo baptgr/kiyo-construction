@@ -180,66 +180,101 @@ export default function SpreadsheetSection() {
 
   // When we have a spreadsheet ID, show the embedded sheet
   return (
-    <Box sx={{ flex: 2, minWidth: 0 }}>
-      <Paper 
+    <Box sx={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box 
         sx={{ 
-          height: '100%',
+          p: 2,
           display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          bgcolor: 'background.paper'
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: '1px solid',
+          borderColor: 'var(--color-border)',
+          bgcolor: 'var(--color-background)',
+          height: '48px'
         }}
       >
-        <Box sx={{ p: 1, borderBottom: 1, borderColor: 'grey.200', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 500 }}>
-            Bid Comparison Sheet
-          </Typography>
-          <Box>
-            <Button 
-              variant="text" 
-              color="primary" 
-              size="small"
-              onClick={() => {
-                navigator.clipboard.writeText(spreadsheetId);
-                // Optional: You could add a state here to show a brief "Copied!" message
-              }}
-              sx={{ mr: 1 }}
-            >
-              GET SPREADSHEET ID
-            </Button>
-            <Button 
-              variant="text" 
-              color="primary" 
-              size="small"
-              onClick={createNewSpreadsheet}
-              sx={{ mr: 1 }}
-            >
-              Create New
-            </Button>
-            <Button 
-              variant="text" 
-              color="primary" 
-              size="small"
-              onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank')}
-            >
-              Open in New Tab
-            </Button>
-          </Box>
-        </Box>
-        
-        <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-          <iframe 
-            src={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&embedded=true&rm=minimal`}
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 'none'
+        <Typography 
+          variant="subtitle1" 
+          sx={{ 
+            fontWeight: 500,
+            fontSize: '0.875rem',
+            color: 'var(--color-text-primary)'
+          }}
+        >
+          Bid Comparison Sheet
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button 
+            variant="text" 
+            size="small"
+            onClick={() => {
+              navigator.clipboard.writeText(spreadsheetId);
             }}
-            title="Google Sheet"
-            allowFullScreen
-          />
+            sx={{ 
+              color: 'var(--color-text-secondary)',
+              textTransform: 'none',
+              fontSize: '0.8125rem',
+              '&:hover': {
+                bgcolor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }
+            }}
+          >
+            Get ID
+          </Button>
+          <Button 
+            variant="text" 
+            size="small"
+            onClick={createNewSpreadsheet}
+            sx={{ 
+              color: 'var(--color-text-secondary)',
+              textTransform: 'none',
+              fontSize: '0.8125rem',
+              '&:hover': {
+                bgcolor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }
+            }}
+          >
+            Create New
+          </Button>
+          <Button 
+            variant="text" 
+            size="small"
+            onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank')}
+            sx={{ 
+              color: 'var(--color-text-secondary)',
+              textTransform: 'none',
+              fontSize: '0.8125rem',
+              '&:hover': {
+                bgcolor: 'var(--color-surface)',
+                color: 'var(--color-text-primary)'
+              }
+            }}
+          >
+            Open in New Tab
+          </Button>
         </Box>
-      </Paper>
+      </Box>
+      
+      <Box sx={{ 
+        flexGrow: 1, 
+        overflow: 'hidden',
+        bgcolor: 'var(--color-background)',
+        position: 'relative'
+      }}>
+        <iframe 
+          src={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&embedded=true&rm=minimal`}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            background: 'var(--color-background)'
+          }}
+          title="Google Sheet"
+          allowFullScreen
+        />
+      </Box>
     </Box>
   );
 } 

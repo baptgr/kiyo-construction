@@ -123,41 +123,58 @@ export default function ChatSection() {
   };
 
   return (
-    <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Paper 
-        sx={{ 
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          bgcolor: 'background.paper',
-          overflow: 'hidden'
-        }}
-      >
-        <Box sx={{ 
-          px: 2, 
-          py: 1, 
-          borderBottom: 1, 
-          borderColor: 'grey.100',
-          height: '40px',
-          display: 'flex',
-          alignItems: 'center'
-        }}>
-          <Typography variant="h5" color="text.primary" sx={{ fontSize: '1.1rem', fontWeight: 500 }}>
-            Construction Assistant
-          </Typography>
-        </Box>
-        
+    <Box sx={{ 
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      bgcolor: 'var(--chat-background)',
+      overflow: 'hidden'
+    }}>
+      <Box sx={{ 
+        px: 2, 
+        py: 1.5,
+        borderBottom: '1px solid',
+        borderColor: 'var(--color-border)',
+        display: 'flex',
+        alignItems: 'center',
+        bgcolor: 'var(--color-background)'
+      }}>
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            fontSize: '0.875rem', 
+            fontWeight: 500,
+            color: 'var(--color-text-primary)'
+          }}
+        >
+          Construction Assistant
+        </Typography>
+      </Box>
+      
+      <Box sx={{ 
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
         <MessageList 
           messages={messages}
           isTyping={isTyping}
           error={error}
         />
         
-        <MessageInput 
-          onSendMessage={sendMessage}
-          isTyping={isTyping}
-        />
-      </Paper>
+        <Box sx={{ 
+          p: 2,
+          borderTop: '1px solid',
+          borderColor: 'var(--color-border)',
+          bgcolor: 'var(--color-background)'
+        }}>
+          <MessageInput 
+            onSendMessage={sendMessage}
+            isTyping={isTyping}
+          />
+        </Box>
+      </Box>
     </Box>
   );
 } 

@@ -1,26 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Base colors */
+  --color-primary: #000000;
+  --color-background: #ffffff;
+  --color-surface: #f7f7f7;
+  --color-border: #e0e0e0;
+  --color-text-primary: #37352f;
+  --color-text-secondary: #6b7280;
+  
+  /* Component specific */
+  --chat-background: var(--color-background);
+  --message-background: var(--color-surface);
+  --input-background: var(--color-surface);
+  --input-border: var(--color-border);
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+/* Base component styles */
+.chat-container {
+  background: var(--chat-background);
+  padding: var(--spacing-md);
+  height: 100vh;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.message {
+  background: var(--message-background);
+  border-radius: 4px;
+  padding: var(--spacing-md);
+  margin: var(--spacing-sm) 0;
+}
+
+.input-container {
+  background: var(--input-background);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  padding: var(--spacing-sm);
+  margin-top: var(--spacing-md);
 }
