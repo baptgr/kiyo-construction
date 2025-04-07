@@ -173,9 +173,7 @@ def chat_stream(request):
                             message_count = 0
                             async for chunk in stream:
                                 message_count += 1
-                                if message_count % 10 == 0:
-                                    logger.info(f"Processed {message_count} message chunks so far")
-                                    
+                                
                                 if 'error' in chunk:
                                     logger.error(f"Error in stream response: {chunk['error']}")
                                     yield f"event: error\ndata: {json.dumps({'error': chunk['error']})}\n\n"

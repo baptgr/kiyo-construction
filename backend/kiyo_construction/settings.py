@@ -161,27 +161,36 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
+        'colored': {
+            '()': 'colorlog.ColoredFormatter',
+            'format': '%(log_color)s%(levelname)-8s%(reset)s %(blue)s%(asctime)s%(reset)s %(white)s%(name)s%(reset)s %(purple)s%(module)s.%(funcName)s:%(lineno)d%(reset)s %(message)s',
+            'log_colors': {
+                'DEBUG': 'cyan',
+                'INFO': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'red,bg_white',
+            },
+            'secondary_log_colors': {},
+            'style': '%'
         },
         'detailed': {
-            'format': '{levelname} {asctime} {name} {module}.{funcName}:{lineno} - {message}',
-            'style': '{',
+            'format': '[%(levelname)s] %(asctime)s\n'
+                     'Module: %(module)s\n'
+                     'Function: %(funcName)s:%(lineno)d\n'
+                     'Message: %(message)s\n'
+                     '-' * 80,
+            'style': '%',
         },
     },
     'handlers': {
         'console': {
-            'level': 'INFO',
+            'level': 'INFO',  # Always INFO regardless of DEBUG
             'class': 'logging.StreamHandler',
-            'formatter': 'detailed',
+            'formatter': 'colored',
         },
         'file': {
-            'level': 'DEBUG',
+            'level': 'INFO',  # Changed to INFO
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'debug.log'),
             'formatter': 'detailed',
@@ -190,16 +199,27 @@ LOGGING = {
     'loggers': {
         '': {  # Root logger
             'handlers': ['console', 'file'],
+            'level': 'INFO',  # Always INFO
+            'propagate': True,
+        },
+        'django': {  # Django logger
+            'handlers': ['console', 'file'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        'django.db.backends': {  # Database logger
+            'handlers': ['console'],
+            'level': 'INFO',  # Changed to INFO
+            'propagate': False,
         },
         'leveling': {
             'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'level': 'INFO',  # Changed to INFO
             'propagate': False,
         },
         'kiyo_agents': {
             'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+            'level': 'INFO',  # Changed to INFO
             'propagate': False,
         },
     },
