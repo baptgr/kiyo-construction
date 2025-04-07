@@ -185,12 +185,12 @@ LOGGING = {
     },
     'handlers': {
         'console': {
-            'level': 'INFO',  # Always INFO regardless of DEBUG
+            'level': 'DEBUG',  # Changed to DEBUG
             'class': 'logging.StreamHandler',
             'formatter': 'colored',
         },
         'file': {
-            'level': 'INFO',  # Changed to INFO
+            'level': 'DEBUG',  # Changed to DEBUG
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'debug.log'),
             'formatter': 'detailed',
@@ -199,27 +199,27 @@ LOGGING = {
     'loggers': {
         '': {  # Root logger
             'handlers': ['console', 'file'],
-            'level': 'INFO',  # Always INFO
+            'level': 'INFO',  # Changed to DEBUG
             'propagate': True,
         },
         'django': {  # Django logger
             'handlers': ['console', 'file'],
-            'level': 'INFO',
+            'level': 'INFO',  # Changed to DEBUG
             'propagate': False,
         },
         'django.db.backends': {  # Database logger
             'handlers': ['console'],
-            'level': 'INFO',  # Changed to INFO
+            'level': 'INFO',  # Changed to DEBUG
             'propagate': False,
         },
         'leveling': {
             'handlers': ['console', 'file'],
-            'level': 'INFO',  # Changed to INFO
+            'level': 'INFO',  # Changed to DEBUG
             'propagate': False,
         },
         'kiyo_agents': {
             'handlers': ['console', 'file'],
-            'level': 'INFO',  # Changed to INFO
+            'level': 'INFO',  # Changed to DEBUG
             'propagate': False,
         },
     },

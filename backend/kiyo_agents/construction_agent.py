@@ -96,8 +96,12 @@ class ConstructionAgent(AgentInterface):
         self.agent = Agent(
             name="Construction Assistant",
             instructions=CONSTRUCTION_AGENT_INSTRUCTIONS,
-            tools=configured_tools
+            tools=configured_tools,
+            model="gpt-4"  # Explicitly set the model name
         )
+        
+        # Store the model name for use in streaming
+        self.model_name = model_name
         
         # Conversation memory - structured as {conversation_id: [{"role": "user/assistant", "content": "message"}]}
         self.conversations = {}

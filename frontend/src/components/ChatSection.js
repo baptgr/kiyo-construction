@@ -25,12 +25,21 @@ export default function ChatSection() {
   }, []);
 
   // Update assistant message text
-  const updateAssistantMessage = useCallback((newText) => {
+  const updateAssistantMessage = useCallback((newText, isIncremental = false) => {
     setMessages(prev => {
       const newMessages = [...prev];
       const lastMessage = newMessages[newMessages.length - 1];
-      if (lastMessage.sender === 'assistant') {
-        lastMessage.text = newText;
+      if (lastMessage?.sender === 'assistant') {
+        const oldText = lastMessage.text;
+        // If we're appending text, make sure we don't duplicate it
+        if (isIncremental) {
+          // Check if the new text is already at the end of the current text
+          if (!oldText.endsWith(newText)) {
+            lastMessage.text = oldText + newText;
+          }
+        } else {
+          lastMessage.text = newText;
+        }
       }
       return newMessages;
     });
@@ -62,49 +71,91 @@ export default function ChatSection() {
       setMessages(prev => [...prev, assistantMessage]);
       
       const response = await getStreamResponse(messageText);
-
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let fullText = '';
+      let messageStarted = false;
+      let streamFinished = false;
 
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        
+        if (done) {
+          if (!streamFinished) {
+            setIsTyping(false);
+          }
+          break;
+        }
 
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n');
         
         for (const line of lines) {
+          if (line.trim() === '' || line.startsWith('retry:')) continue;
+          
+          if (line.startsWith('event:')) {
+            const eventType = line.slice(7).trim();
+            if (eventType === 'error') {
+              messageStarted = false;
+              setIsTyping(false);
+            } else if (eventType === 'done') {
+              streamFinished = true;
+              setIsTyping(false);
+            }
+            continue;
+          }
+          
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
               
-              if (data.text) {
-                fullText = data.text;
-                updateAssistantMessage(fullText);
-              }
-              if (data.finished) {
+              if (data.error) {
+                setError(data.error);
                 setIsTyping(false);
                 return;
               }
-              if (data.error) {
-                console.error('Stream error:', data.error);
+              
+              if (data.text) {
+                messageStarted = true;
+                updateAssistantMessage(data.text);
+              }
+              
+              if (data.finished) {
+                streamFinished = true;
                 setIsTyping(false);
-                throw new Error(data.error);
+                return;
               }
             } catch (e) {
               console.error('Error parsing SSE data:', e);
+              continue;
             }
           }
         }
       }
+      
+      if (!messageStarted) {
+        throw new Error('No response received from the agent');
+      }
+      
+      setIsTyping(false);
+      
     } catch (error) {
-      console.error('Error:', error);
-      setError(error.message || 'An error occurred');
+      console.error('Error in streaming:', error);
+      setError(error.message || 'An error occurred while streaming the response');
+      
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const lastMessage = newMessages[newMessages.length - 1];
+        if (lastMessage?.sender === 'assistant') {
+          lastMessage.text = 'Error: Failed to get response';
+          lastMessage.error = true;
+        }
+        return newMessages;
+      });
+      
       setIsTyping(false);
     }
   };
