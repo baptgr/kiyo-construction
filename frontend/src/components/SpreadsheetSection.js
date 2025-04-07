@@ -264,7 +264,7 @@ export default function SpreadsheetSection() {
         position: 'relative'
       }}>
         <iframe 
-          src={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&embedded=true&rm=minimal`}
+          src={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?usp=sharing&embedded=true&rm=demo`}
           style={{
             width: '100%',
             height: '100%',
