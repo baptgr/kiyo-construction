@@ -10,8 +10,6 @@ export default function ChatSection() {
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState(null);
-  const { data: session } = useSession();
-  const { spreadsheetId } = useSpreadsheet();
   const { getStreamResponse } = useAgentStreamApi();
 
   // Add event listener for error dismissal
@@ -49,75 +47,53 @@ export default function ChatSection() {
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Get the streaming response
+      // Get streaming response using our hook
       const response = await getStreamResponse(messageText);
-      
+
       if (!response.ok) {
-        throw new Error(`API responded with status ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
-      // Use the stream reader to process chunks
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
-      
+
       while (true) {
         const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
         
-        if (done) {
-          setIsTyping(false);
-          break;
-        }
-        
-        // Decode the chunk and add to buffer
-        const newText = decoder.decode(value, { stream: true });
-        buffer += newText;
-        
-        // Process complete SSE events in the buffer
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || ''; // Keep the incomplete event in the buffer
-        
-        for (const eventText of lines) {
-          if (!eventText.trim()) continue;
-          
-          // Parse event type and data
-          const eventLines = eventText.split('\n');
-          
-          const eventType = eventLines.find(line => line.startsWith('event:'))?.substring(6).trim();
-          const dataLine = eventLines.find(line => line.startsWith('data:'))?.substring(5).trim();
-          
-          if (!eventType || !dataLine) continue;
-          
-          try {
-            const data = JSON.parse(dataLine);
-            
-            if (eventType === 'chunk' && data.text) {
-              // Update the last message with the new text chunk
-              setMessages(prev => {
-                const newMessages = [...prev];
-                const lastMessage = newMessages[newMessages.length - 1];
-                if (lastMessage.sender === 'assistant') {
-                  // For the updated streaming, replace the entire text
-                  // instead of appending, since backend now sends cumulative text
-                  lastMessage.text = data.text;
-                }
-                return [...newMessages]; // Create a new array to trigger re-render
-              });
-            } else if (eventType === 'done') {
-              setIsTyping(false);
-            } else if (eventType === 'error' && data.error) {
-              console.error("Received error event:", data.error);
-              setError(data.error);
-              setIsTyping(false);
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.text) {
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMessage = newMessages[newMessages.length - 1];
+                  if (lastMessage.sender === 'assistant') {
+                    lastMessage.text += data.text;
+                  }
+                  return newMessages;
+                });
+              }
+              if (data.finished) {
+                setIsTyping(false);
+                return;
+              }
+              if (data.error) {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
             }
-          } catch (e) {
-            console.error('Error parsing SSE data:', e, dataLine);
           }
         }
       }
-    } catch (err) {
-      console.error('Error sending message:', err);
-      setError(err.message);
+    } catch (error) {
+      console.error('Error:', error);
+      setError(error.message || 'An error occurred');
       setIsTyping(false);
     }
   };
