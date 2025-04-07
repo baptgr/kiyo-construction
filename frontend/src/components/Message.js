@@ -18,24 +18,8 @@ export default function Message({ message }) {
         display: 'flex', 
         alignItems: 'flex-start',
         maxWidth: '85%',
-        gap: 1.5,
         width: '100%'
       }}>
-        {!isUser && (
-          <Avatar 
-            sx={{ 
-              mt: 0.5, 
-              bgcolor: 'var(--color-surface)',
-              color: 'var(--color-text-primary)',
-              width: 24,
-              height: 24,
-              fontSize: '0.875rem',
-              fontWeight: 500
-            }}
-          >
-            K
-          </Avatar>
-        )}
         <Box 
           sx={{ 
             p: isUser ? 1 : 0,
@@ -158,21 +142,6 @@ export default function Message({ message }) {
             </div>
           )}
         </Box>
-        {isUser && (
-          <Avatar 
-            sx={{ 
-              mt: 0.5,
-              bgcolor: 'var(--color-surface)',
-              color: 'var(--color-text-primary)',
-              width: 24,
-              height: 24,
-              fontSize: '0.875rem',
-              fontWeight: 500
-            }}
-          >
-            U
-          </Avatar>
-        )}
       </Box>
     </ListItem>
   );

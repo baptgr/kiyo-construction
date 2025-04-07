@@ -1,5 +1,5 @@
 import { Box, Paper, Typography } from '@mui/material';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSpreadsheet } from '@/context/SpreadsheetContext';
 import { useAgentStreamApi } from '@/utils/agentAPI';
@@ -14,12 +14,26 @@ export default function ChatSection() {
 
   // Add event listener for error dismissal
   useEffect(() => {
-    const handleDismissError = () => setError(null);
+    const handleDismissError = () => {
+      setError(null);
+    };
     document.addEventListener('dismissError', handleDismissError);
     
     return () => {
       document.removeEventListener('dismissError', handleDismissError);
     };
+  }, []);
+
+  // Update assistant message text
+  const updateAssistantMessage = useCallback((newText) => {
+    setMessages(prev => {
+      const newMessages = [...prev];
+      const lastMessage = newMessages[newMessages.length - 1];
+      if (lastMessage.sender === 'assistant') {
+        lastMessage.text = newText;
+      }
+      return newMessages;
+    });
   }, []);
 
   // Send a message to the API with streaming
@@ -47,7 +61,6 @@ export default function ChatSection() {
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Get streaming response using our hook
       const response = await getStreamResponse(messageText);
 
       if (!response.ok) {
@@ -56,6 +69,7 @@ export default function ChatSection() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let fullText = '';
 
       while (true) {
         const { value, done } = await reader.read();
@@ -68,21 +82,18 @@ export default function ChatSection() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
+              
               if (data.text) {
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const lastMessage = newMessages[newMessages.length - 1];
-                  if (lastMessage.sender === 'assistant') {
-                    lastMessage.text += data.text;
-                  }
-                  return newMessages;
-                });
+                fullText = data.text;
+                updateAssistantMessage(fullText);
               }
               if (data.finished) {
                 setIsTyping(false);
                 return;
               }
               if (data.error) {
+                console.error('Stream error:', data.error);
+                setIsTyping(false);
                 throw new Error(data.error);
               }
             } catch (e) {
