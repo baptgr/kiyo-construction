@@ -5,6 +5,7 @@ from typing import AsyncIterator, Dict, Any, Optional, List
 import logging
 import pickle
 from pathlib import Path
+import uuid
 
 # Import from the installed package
 from agents import Agent, Runner
@@ -40,22 +41,20 @@ logger = logging.getLogger(__name__)
 class ConstructionAgent(AgentInterface):
     """Implementation of the construction agent using OpenAI Agents SDK."""
     
-    def __init__(self, api_key: Optional[str] = None, model_name: str = "gpt-4o", google_access_token: Optional[str] = None):
-        """Initialize the construction agent.
+    def __init__(self, api_key: Optional[str] = None, 
+                 model_name: str = "gpt-4o", 
+                 google_access_token: Optional[str] = None,
+                 memory_store: Optional[Any] = None):
+        """Initialize the construction agent."""
         
-        Args:
-            api_key: OpenAI API key (defaults to OPENAI_API_KEY environment variable)
-            model_name: Model to use (default: gpt-4o)
-            google_access_token: Google OAuth access token for sheets access
-        """
-        logger.info("Initializing ConstructionAgent")
-        # Use provided API key or fall back to environment variable
-        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY or pass api_key parameter.")
+        # Store the API key
+        self.api_key = api_key
         
-        # Store Google access token
+        # Store Google access token if provided
         self.google_access_token = google_access_token
+        
+        # Store memory store
+        self.memory = memory_store
         
         # Import tools from google_sheets_tools
         from .google_sheets_tools import (
@@ -63,7 +62,7 @@ class ConstructionAgent(AgentInterface):
             READ_SHEET_SCHEMA, WRITE_SHEET_SCHEMA
         )
         
-        # Create our own tool instances with pre-configured access token
+        # Initialize empty list of tools
         configured_tools = []
         
         if self.google_access_token:
@@ -102,65 +101,51 @@ class ConstructionAgent(AgentInterface):
         
         # Store the model name for use in streaming
         self.model_name = model_name
-        
-        # Conversation memory - structured as {conversation_id: [{"role": "user/assistant", "content": "message"}]}
-        self.conversations = {}
-        logger.info(f"ConstructionAgent initialized with empty conversations dictionary")
     
     async def process_message(self, message: str, conversation_id: Optional[str] = None) -> Dict[str, Any]:
         """Process a message and return a complete response."""
         # Use default conversation_id if not provided
-        conversation_id = conversation_id or "default"
-        logger.info(f"process_message called with conversation_id: {conversation_id}")
-        logger.info(f"Current conversation state: {self.conversations.keys()}")
+        conversation_id = conversation_id or str(uuid.uuid4())
         
-        # Initialize conversation history if it doesn't exist
-        if conversation_id not in self.conversations:
-            logger.info(f"Creating new conversation for {conversation_id}")
-            self.conversations[conversation_id] = []
-        
-        # Add user message to history
-        self.conversations[conversation_id].append({"role": "user", "content": message})
-        logger.info(f"Added user message to conversation {conversation_id}, message count: {len(self.conversations[conversation_id])}")
-        
-        # Export conversation history to a format OpenAI will understand
-        history_text = ""
-        if len(self.conversations[conversation_id]) > 1:
-            history_text = "Previous conversation:\n"
-            for i, entry in enumerate(self.conversations[conversation_id][:-1]):  # All except current message
-                role_prefix = "User: " if entry["role"] == "user" else "Assistant: "
-                history_text += f"{role_prefix}{entry['content']}\n"
-            
-            # Add separator
-            history_text += "\n---\n\n"
-        
-        # Construct a message that includes history
-        if history_text:
-            logger.info(f"Including conversation history of {len(self.conversations[conversation_id])-1} previous messages")
-            enhanced_message = f"{history_text}User: {message}\n\nPlease respond to the user's most recent message, taking into account the conversation history above."
-        else:
-            enhanced_message = message
+        # Get conversation context if we have a memory store
+        context = ""
+        if self.memory:
+            # Ensure conversation exists
+            await self.memory.get_or_create_conversation(conversation_id)
+            # Get context from previous messages
+            context = await self.memory.get_conversation_context(conversation_id)
+            # Store the user message
+            await self.memory.add_message(conversation_id, "user", message)
         
         # Create a context object for the RunContextWrapper to access
-        context = {}
-        
+        tool_context = {}
         if self.google_access_token:
-            # Store token in multiple places for different access patterns
-            context["google_access_token"] = self.google_access_token
-            context["tool_context"] = {"google_access_token": self.google_access_token}
-            context["kwargs"] = {"google_access_token": self.google_access_token}
+            tool_context.update({
+                "google_access_token": self.google_access_token,
+                "tool_context": {"google_access_token": self.google_access_token},
+                "kwargs": {"google_access_token": self.google_access_token}
+            })
         
-        # Use the run method from the example with context
-        logger.info(f"Running agent with message that includes conversation history")
+        # Enhance message with context if exists
+        enhanced_message = f"{context}User: {message}" if context else message
+        
+        # Use the run method with context
+        logger.info(f"Running agent with message")
         result = await Runner.run(
             self.agent, 
             enhanced_message,
-            context=context
+            context=tool_context
         )
         
-        # Add assistant response to history
-        self.conversations[conversation_id].append({"role": "assistant", "content": result.final_output})
-        logger.info(f"Added assistant response to conversation {conversation_id}, message count: {len(self.conversations[conversation_id])}")
+        # Store the assistant's response if we have a memory store
+        if self.memory:
+            await self.memory.add_message(
+                conversation_id, 
+                "assistant", 
+                result.final_output,
+                item_type="response",
+                metadata={"items": [item.dict() for item in result.new_items]}
+            )
         
         # Format the response
         response = {
@@ -173,40 +158,35 @@ class ConstructionAgent(AgentInterface):
     async def process_message_stream(self, message: str, conversation_id: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
         """Process a message and yield chunks of the response as they're generated."""
         # Use default conversation_id if not provided
-        conversation_id = conversation_id or "default"
+        conversation_id = conversation_id or str(uuid.uuid4())
         
-        # Initialize conversation history if it doesn't exist
-        if conversation_id not in self.conversations:
-            self.conversations[conversation_id] = []
-        
-        # Add user message to history
-        self.conversations[conversation_id].append({"role": "user", "content": message})
+        # Get conversation context if we have a memory store
+        context = ""
+        if self.memory:
+            # Ensure conversation exists
+            await self.memory.get_or_create_conversation(conversation_id)
+            # Get context from previous messages
+            context = await self.memory.get_conversation_context(conversation_id)
+            # Store the user message
+            await self.memory.add_message(conversation_id, "user", message)
         
         # Create a context object for the RunContextWrapper to access
-        context = {
-            "conversation_history": self.conversations[conversation_id]
-        }
-        
+        tool_context = {}
         if self.google_access_token:
-            # Store token in multiple places for different access patterns
-            context["google_access_token"] = self.google_access_token
-            context["tool_context"] = {"google_access_token": self.google_access_token}
-            context["kwargs"] = {"google_access_token": self.google_access_token}
+            tool_context.update({
+                "google_access_token": self.google_access_token,
+                "tool_context": {"google_access_token": self.google_access_token},
+                "kwargs": {"google_access_token": self.google_access_token}
+            })
         
-        # Enhance instructions with conversation history for context
-        enhanced_instructions = CONSTRUCTION_AGENT_INSTRUCTIONS
-        if len(self.conversations[conversation_id]) > 1:
-            # We have previous conversation to reference
-            enhanced_instructions += "\n\nThis is a continuation of a conversation. Remember previous context."
-            
-        # Update agent instructions with history context
-        self.agent.instructions = enhanced_instructions
+        # Enhance message with context if exists
+        enhanced_message = f"{context}User: {message}" if context else message
         
         # Use the streaming method with context
         result = Runner.run_streamed(
             self.agent, 
-            input=message,
-            context=context
+            input=enhanced_message,
+            context=tool_context
         )
         
         # Variable to collect the full response
@@ -224,8 +204,15 @@ class ConstructionAgent(AgentInterface):
                         "conversation_id": conversation_id
                     }
                 elif event.type == "final_output_event":
-                    # Add assistant response to history
-                    self.conversations[conversation_id].append({"role": "assistant", "content": full_response})
+                    # Store the complete response if we have a memory store
+                    if self.memory and full_response:
+                        await self.memory.add_message(
+                            conversation_id, 
+                            "assistant", 
+                            full_response,
+                            item_type="response",
+                            metadata={"items": [item.dict() for item in result.new_items]}
+                        )
                     
                     # Send a final event indicating completion
                     yield {
@@ -264,55 +251,41 @@ class ConstructionAgent(AgentInterface):
         # Create an async generator to handle the stream
         async def token_stream():
             # Use default conversation_id if not provided
-            conv_id = conversation_id or "default"
+            conv_id = conversation_id or str(uuid.uuid4())
             logger.info(f"get_stream called with conversation_id: {conv_id}")
-            logger.info(f"Current conversation state: {self.conversations.keys()}")
             
-            # Initialize conversation history if it doesn't exist
-            if conv_id not in self.conversations:
-                logger.info(f"Creating new conversation for {conv_id}")
-                self.conversations[conv_id] = []
+            # Get conversation context if we have a memory store
+            context = ""
+            if self.memory:
+                # Ensure conversation exists
+                await self.memory.get_or_create_conversation(conv_id)
+                # Get context from previous messages
+                context = await self.memory.get_conversation_context(conv_id)
+                # Store the user message
+                await self.memory.add_message(conv_id, "user", message)
             
-            # Add user message to history
-            self.conversations[conv_id].append({"role": "user", "content": message})
-            logger.info(f"Added user message to conversation {conv_id}, message count: {len(self.conversations[conv_id])}")
-            
-            # Export conversation history to a format OpenAI will understand
-            history_text = ""
-            if len(self.conversations[conv_id]) > 1:
-                history_text = "Previous conversation:\n"
-                for i, entry in enumerate(self.conversations[conv_id][:-1]):  # All except current message
-                    role_prefix = "User: " if entry["role"] == "user" else "Assistant: "
-                    history_text += f"{role_prefix}{entry['content']}\n"
-                
-                # Add separator
-                history_text += "\n---\n\n"
-            
-            # Construct a message that includes history
-            if history_text:
-                logger.info(f"Including conversation history of {len(self.conversations[conv_id])-1} previous messages")
-                enhanced_message = f"{history_text}User: {message}\n\nPlease respond to the user's most recent message, taking into account the conversation history above."
-            else:
-                enhanced_message = message
+            # Enhance message with context if exists
+            enhanced_message = f"{context}User: {message}" if context else message
             
             full_text = ""
             
             try:
                 # Create a context object for the RunContextWrapper to access
-                context = {}
+                tool_context = {}
                 
                 if self.google_access_token:
-                    # Store token in multiple places for different access patterns
-                    context["google_access_token"] = self.google_access_token
-                    context["tool_context"] = {"google_access_token": self.google_access_token}
-                    context["kwargs"] = {"google_access_token": self.google_access_token}
+                    tool_context.update({
+                        "google_access_token": self.google_access_token,
+                        "tool_context": {"google_access_token": self.google_access_token},
+                        "kwargs": {"google_access_token": self.google_access_token}
+                    })
                 
                 # Get the streamed result with context
-                logger.info(f"Running streaming agent with message that includes conversation history")
+                logger.info(f"Running streaming agent with message")
                 streamed_result = Runner.run_streamed(
                     self.agent, 
                     input=enhanced_message,
-                    context=context
+                    context=tool_context
                 )
                 
                 # Process the stream
@@ -335,9 +308,15 @@ class ConstructionAgent(AgentInterface):
                             
                     # When we reach the final output, signal completion
                     elif event.type == "final_output_event":
-                        # Add assistant response to history
-                        self.conversations[conv_id].append({"role": "assistant", "content": full_text})
-                        logger.info(f"Added assistant response to conversation {conv_id}, message count: {len(self.conversations[conv_id])}")
+                        # Store the complete response if we have a memory store
+                        if self.memory and full_text:
+                            await self.memory.add_message(
+                                conv_id, 
+                                "assistant", 
+                                full_text,
+                                item_type="response",
+                                metadata={"items": [item.dict() for item in streamed_result.new_items]}
+                            )
                         
                         # Send a final event indicating completion
                         yield {
@@ -349,11 +328,6 @@ class ConstructionAgent(AgentInterface):
                 # Log the error and yield an error response
                 logger.error(f"Error in token_stream: {e}")
                 
-                # Even if there was an error, still add partial response to history if we have one
-                if full_text:
-                    logger.info(f"Saving partial response to conversation history: {full_text[:30]}...")
-                    self.conversations[conv_id].append({"role": "assistant", "content": full_text})
-                    
                 yield {
                     "text": f"Error: {str(e)}",
                     "error": str(e),
@@ -368,12 +342,14 @@ class ConstructionAgent(AgentInterface):
 class ConstructionAgentFactory:
     """Factory for creating construction agent instances."""
     
-    def __init__(self, api_key: Optional[str] = None, google_access_token: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, google_access_token: Optional[str] = None, memory_store: Optional[Any] = None):
         logger.info("Initializing ConstructionAgentFactory")
         self.api_key = api_key
         self.google_access_token = google_access_token
+        self.memory_store = memory_store
         logger.info(f"Factory initialized with API key: {'set' if api_key else 'not set'}, " 
-                   f"Google token: {'set' if google_access_token else 'not set'}")
+                   f"Google token: {'set' if google_access_token else 'not set'}, "
+                   f"Memory store: {'set' if memory_store else 'not set'}")
         
     def create_agent(self, agent_type: str = "construction") -> AgentInterface:
         """Create and return an agent of the specified type."""
@@ -381,7 +357,8 @@ class ConstructionAgentFactory:
         if agent_type.lower() == "construction":
             agent = ConstructionAgent(
                 api_key=self.api_key,
-                google_access_token=self.google_access_token
+                google_access_token=self.google_access_token,
+                memory_store=self.memory_store
             )
             logger.info(f"Factory created construction agent with ID: {id(agent)}")
             return agent

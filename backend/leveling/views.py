@@ -7,6 +7,7 @@ import json
 import asyncio
 import os
 import time
+import uuid
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from asgiref.sync import async_to_sync, sync_to_async
 from django.views.decorators.csrf import csrf_exempt
@@ -16,43 +17,18 @@ from typing import AsyncGenerator
 from contextvars import ContextVar
 
 from kiyo_agents.construction_agent import ConstructionAgentFactory
+from .services import DatabaseMemoryStore
 
 # Configure more detailed logging
 logger = logging.getLogger(__name__)
-
-# Module-level agent cache to maintain agent instances between requests
-# Key: (api_key, google_access_token), Value: agent instance
-_AGENT_CACHE = {}
 
 # Create context variable at module level
 current_conversation_id = ContextVar('current_conversation_id', default=None)
 current_loop = asyncio.new_event_loop()
 asyncio.set_event_loop(current_loop)
 
-def _get_cached_agent(api_key, google_access_token=None):
-    """Get or create an agent instance from the cache."""
-    # Create a key from the API key and access token
-    cache_key = (api_key, google_access_token)
-    
-    # Check if we already have an agent for this key
-    if cache_key not in _AGENT_CACHE:
-        logger.info(f"Creating new agent instance (cache miss)")
-        factory = ConstructionAgentFactory(
-            api_key=api_key,
-            google_access_token=google_access_token
-        )
-        agent = factory.create_agent()
-        _AGENT_CACHE[cache_key] = agent
-        logger.info(f"New agent created, conversation count: {len(agent.conversations)}")
-    else:
-        agent = _AGENT_CACHE[cache_key]
-        logger.info(f"Reusing cached agent instance (cache hit), conversation count: {len(agent.conversations)}")
-        
-        # Debug: List conversations
-        for conv_id, msgs in agent.conversations.items():
-            logger.info(f"Conversation {conv_id}: {len(msgs)} messages")
-    
-    return _AGENT_CACHE[cache_key]
+# Create a shared memory store instance
+memory_store = DatabaseMemoryStore()
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -64,7 +40,6 @@ def hello_world(request):
         'message': 'Hello World! Welcome to the Kiyo Construction API'
     })
 
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def chat(request):
@@ -75,23 +50,27 @@ def chat(request):
         # Get message from request
         data = json.loads(request.body)
         message = data.get('message', '')
-        conversation_id = data.get('conversation_id', 'default')
+        conversation_id = data.get('conversation_id')
         google_access_token = data.get('google_access_token')
         spreadsheet_id = data.get('spreadsheet_id')
+        
+        # Generate a new UUID if conversation_id is not provided or is 'default'
+        if not conversation_id or conversation_id == 'default':
+            conversation_id = str(uuid.uuid4())
         
         logger.info(f"Processing chat for conversation_id: {conversation_id}")
         
         if not message:
             return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get cached agent instance
+        # Create a new agent instance with memory store
         api_key = os.environ.get('OPENAI_API_KEY')
-        agent = _get_cached_agent(api_key, google_access_token)
-        
-        # Log conversation state before processing
-        conv_exists = conversation_id in agent.conversations
-        conv_messages = len(agent.conversations.get(conversation_id, []))
-        logger.info(f"Before processing - Conversation exists: {conv_exists}, messages: {conv_messages}")
+        factory = ConstructionAgentFactory(
+            api_key=api_key,
+            google_access_token=google_access_token,
+            memory_store=memory_store
+        )
+        agent = factory.create_agent()
         
         # Store spreadsheet ID in the conversation context if provided
         if spreadsheet_id:
@@ -107,17 +86,11 @@ def chat(request):
         # Process message (synchronously in this case)
         response = async_to_sync(agent.process_message)(enhanced_message, conversation_id)
         
-        # Log conversation state after processing
-        conv_exists = conversation_id in agent.conversations
-        conv_messages = len(agent.conversations.get(conversation_id, []))
-        logger.info(f"After processing - Conversation exists: {conv_exists}, messages: {conv_messages}")
-        
         return JsonResponse(response)
     except Exception as e:
         # Log the actual error but return generic message
         logger.error(f"API error: {str(e)}", exc_info=True)
         return JsonResponse({'error': 'Error, something went wrong'}, status=500)
-
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -129,9 +102,13 @@ def chat_stream(request):
     try:
         data = json.loads(request.body)
         message = data.get('message', '')
-        conversation_id = data.get('conversation_id', 'default')
+        conversation_id = data.get('conversation_id')
         google_access_token = data.get('google_access_token')
         spreadsheet_id = data.get('spreadsheet_id')
+        
+        # Generate a new UUID if conversation_id is not provided or is 'default'
+        if not conversation_id or conversation_id == 'default':
+            conversation_id = str(uuid.uuid4())
         
         logger.info(f"Processing chat_stream for conversation_id: {conversation_id}")
         
@@ -146,14 +123,14 @@ def chat_stream(request):
                 yield "retry: 1000\n\n"
                 
                 try:
-                    # Get cached agent instance
+                    # Create a new agent instance with memory store
                     api_key = os.environ.get('OPENAI_API_KEY')
-                    agent = _get_cached_agent(api_key, google_access_token)
-                    
-                    # Log conversation state before processing
-                    conv_exists = conversation_id in agent.conversations
-                    conv_messages = len(agent.conversations.get(conversation_id, []))
-                    logger.info(f"Before streaming - Conversation exists: {conv_exists}, messages: {conv_messages}")
+                    factory = ConstructionAgentFactory(
+                        api_key=api_key,
+                        google_access_token=google_access_token,
+                        memory_store=memory_store
+                    )
+                    agent = factory.create_agent()
                     
                     # Store spreadsheet ID in the conversation context if provided
                     if spreadsheet_id:
@@ -177,12 +154,7 @@ def chat_stream(request):
                             yield f"event: done\ndata: {json.dumps({'finished': True})}\n\n"
                         elif 'text' in chunk:
                             yield f"event: chunk\ndata: {json.dumps({'text': chunk['text'], 'finished': False})}\n\n"
-                        
-                    # Log conversation state after streaming
-                    conv_exists = conversation_id in agent.conversations
-                    conv_messages = len(agent.conversations.get(conversation_id, []))
-                    logger.info(f"After streaming - Conversation exists: {conv_exists}, messages: {conv_messages}")
-                    
+                            
                 except Exception as e:
                     logger.error(f"Error in streaming: {str(e)}", exc_info=True)
                     yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
@@ -209,4 +181,26 @@ def chat_stream(request):
         
     except Exception as e:
         logger.error(f"Error in chat_stream: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def delete_conversation(request):
+    """Delete a conversation and its messages."""
+    try:
+        data = json.loads(request.body)
+        conversation_id = data.get('conversation_id')
+        
+        if not conversation_id:
+            return JsonResponse({'error': 'conversation_id is required'}, status=400)
+            
+        success = async_to_sync(memory_store.delete_conversation)(conversation_id)
+        
+        if success:
+            return JsonResponse({'status': 'success'})
+        else:
+            return JsonResponse({'error': 'Conversation not found'}, status=404)
+            
+    except Exception as e:
+        logger.error(f"Error deleting conversation: {str(e)}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)

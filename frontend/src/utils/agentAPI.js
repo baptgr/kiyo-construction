@@ -11,7 +11,7 @@ import { useSpreadsheet } from '@/context/SpreadsheetContext';
  */
 async function sendAgentRequest(message, options = {}) {
   const {
-    conversationId = 'default',
+    conversationId,
     googleAccessToken = null,
     spreadsheetId = null,
     isStreaming = false
@@ -41,7 +41,7 @@ async function sendAgentRequest(message, options = {}) {
  * @param {string} spreadsheetId - Optional spreadsheet ID to use for the task
  * @returns {Promise<Object>} - The agent's response
  */
-export async function sendMessageToAgent(message, conversationId = 'default', googleAccessToken = null, spreadsheetId = null) {
+export async function sendMessageToAgent(message, conversationId = null, googleAccessToken = null, spreadsheetId = null) {
   try {
     const response = await sendAgentRequest(message, {
       conversationId,
@@ -70,13 +70,40 @@ export async function sendMessageToAgent(message, conversationId = 'default', go
  * @param {string} spreadsheetId - Optional spreadsheet ID to use for the task
  * @returns {Promise<Response>} - The streaming response object
  */
-export async function getAgentStreamResponse(message, conversationId = 'default', googleAccessToken = null, spreadsheetId = null) {
+export async function getAgentStreamResponse(message, conversationId = null, googleAccessToken = null, spreadsheetId = null) {
   return sendAgentRequest(message, {
     conversationId,
     googleAccessToken,
     spreadsheetId,
     isStreaming: true
   });
+}
+
+/**
+ * Delete a conversation
+ * @param {string} conversationId - The ID of the conversation to delete
+ * @returns {Promise<Object>} - The response from the server
+ */
+export async function deleteConversation(conversationId) {
+  try {
+    const response = await fetch('/api/agent/conversation/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ conversation_id: conversationId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    throw error;
+  }
 }
 
 /**
@@ -87,29 +114,14 @@ export function useAgentApi() {
   const { data: session } = useSession();
   const { spreadsheetId } = useSpreadsheet();
   
-  const sendMessage = async (message, conversationId = 'default') => {
+  const sendMessage = async (message, conversationId = null) => {
     // Extract Google access token from session if available
     const googleAccessToken = session?.accessToken || null;
     
     return sendMessageToAgent(message, conversationId, googleAccessToken, spreadsheetId);
   };
-  
-  return {
-    sendMessage,
-    isAuthenticated: !!session,
-    googleAccessToken: session?.accessToken,
-    spreadsheetId
-  };
-}
 
-/**
- * Hook to use agent streaming capabilities with current session
- */
-export function useAgentStreamApi() {
-  const { data: session } = useSession();
-  const { spreadsheetId } = useSpreadsheet();
-  
-  const getStreamResponse = async (message, conversationId = 'default') => {
+  const getStreamResponse = async (message, conversationId = null) => {
     // Extract Google access token from session if available
     const googleAccessToken = session?.accessToken || null;
     
@@ -117,9 +129,34 @@ export function useAgentStreamApi() {
   };
   
   return {
+    sendMessage,
     getStreamResponse,
+    deleteConversation,
     isAuthenticated: !!session,
     googleAccessToken: session?.accessToken,
+    spreadsheetId
+  };
+}
+
+/**
+ * Hook specifically for streaming responses from the agent
+ * Automatically includes Google access token from session when available
+ */
+export function useAgentStreamApi() {
+  const { data: session } = useSession();
+  const { spreadsheetId } = useSpreadsheet();
+  
+  const getStreamResponse = async (message, conversationId = null) => {
+    // Extract Google access token from session if available
+    const googleAccessToken = session?.accessToken || null;
+    
+    return getAgentStreamResponse(message, conversationId, googleAccessToken, spreadsheetId);
+  };
+
+  return {
+    getStreamResponse,
+    isAuthenticated: !!session,
+    googleAccessToken: session?.accessToken || null,
     spreadsheetId
   };
 } 
