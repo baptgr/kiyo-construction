@@ -112,6 +112,15 @@ class GoogleSheetsService:
                 if not response.is_success:
                     response_text = response.text
                     logger.error(f"Error response from Google Sheets API: {response_text}")
+                    
+                    # Try to parse the error message to get more detailed information
+                    try:
+                        error_json = response.json()
+                        if 'error' in error_json and 'message' in error_json['error']:
+                            detailed_message = error_json['error']['message']
+                            raise Exception(f"Google Sheets API error: {detailed_message}")
+                    except (json.JSONDecodeError, KeyError):
+                        pass
                 
                 response.raise_for_status()
                 result = response.json()
@@ -180,6 +189,15 @@ class GoogleSheetsService:
                 if not response.is_success:
                     response_text = response.text
                     logger.error(f"Error response from Google Sheets API: {response_text}")
+                    
+                    # Try to parse the error message to get more detailed information
+                    try:
+                        error_json = response.json()
+                        if 'error' in error_json and 'message' in error_json['error']:
+                            detailed_message = error_json['error']['message']
+                            raise Exception(f"Google Sheets API error: {detailed_message}")
+                    except (json.JSONDecodeError, KeyError):
+                        pass
                 
                 response.raise_for_status()
                 result = response.json()

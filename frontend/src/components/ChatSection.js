@@ -1,5 +1,5 @@
 import { Box, Paper, Typography } from '@mui/material';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSpreadsheet } from '@/context/SpreadsheetContext';
 import { useAgentStreamApi } from '@/utils/agentAPI';
@@ -13,6 +13,16 @@ export default function ChatSection() {
   const { data: session } = useSession();
   const { spreadsheetId } = useSpreadsheet();
   const { getStreamResponse } = useAgentStreamApi();
+
+  // Add event listener for error dismissal
+  useEffect(() => {
+    const handleDismissError = () => setError(null);
+    document.addEventListener('dismissError', handleDismissError);
+    
+    return () => {
+      document.removeEventListener('dismissError', handleDismissError);
+    };
+  }, []);
 
   // Send a message to the API with streaming
   const sendMessage = async (messageText) => {
