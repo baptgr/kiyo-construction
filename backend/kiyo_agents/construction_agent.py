@@ -105,18 +105,32 @@ class ConstructionAgent:
         workflow.add_edge(START, "agent")
         
         if tools:
+            # Create tool node with proper error handling
             tool_node = ToolNode(tools)
+
+            # Add tool node to graph
             workflow.add_node("tools", tool_node)
+
+            # Define conditional edges with better logic
+            def should_continue(state: AgentState):
+                logger.info("Should continue switch")
+                logger.info(f"State: {state}")
+                messages = state["messages"]
+                last_message = messages[-1]
+                if last_message.tool_calls:
+                    return "tools"
+                return END
+                            
+
             workflow.add_conditional_edges(
                 "agent",
-                lambda x: "tools" if x.get("tool_calls") else END,
-                {
-                    "tools": "agent",
-                    END: END
-                }
+                should_continue,
+                ["tools", END]
             )
         else:
             workflow.add_edge("agent", END)
+
+        workflow.add_edge("tools", "agent")
         
         # Compile the graph with memory support
         return workflow.compile(checkpointer=self.memory)
@@ -196,25 +210,31 @@ class ConstructionAgent:
         logger.info("Starting graph streaming")
         # Stream the response with thread configuration
         accumulated_text = ""
-        for stream_type, event in self.graph.stream(state, config=config, stream_mode=["messages"]):
+        for stream_type, event in self.graph.stream(state, config=config, stream_mode=["messages", "updates"]):
+            import pprint
+            logger.info(f"Received event: {pprint.pformat(event)}")
             if stream_type == "messages":
                 message, metadata = event
                 if hasattr(message, 'content'):
-                    # Accumulate the text
-                    accumulated_text += message.content
-                    chunk = {
-                        "text": accumulated_text,  # Send the full accumulated text
-                        "tool_calls": getattr(message, "tool_calls", None),
-                        "type": "message"
-                    }
-                    logger.info(f"Yielding message chunk: {chunk['text'][:50]}...")
-                    yield chunk
+                    # Only update accumulated text if there's actual content
+                    if message.content:
+                        accumulated_text += message.content
+                        chunk = {
+                            "text": accumulated_text,
+                            "tool_calls": getattr(message, "tool_calls", None),
+                            "type": "message"
+                        }
+                        logger.info(f"Yielding message chunk: {chunk}...")
+                        yield chunk
             elif stream_type == "updates" and "tool_calls" in event:
-                chunk = {
-                    "tool_calls": event["tool_calls"],
-                    "type": "tool_call"
-                }
-                logger.info(f"Yielding tool call chunk: {json.dumps(chunk['tool_calls'])}")
-                yield chunk
+                # Only yield tool calls if they have valid names
+                tool_calls = event.get("tool_calls", [])
+                if tool_calls and any(call.get("name") for call in tool_calls):
+                    chunk = {
+                        "tool_calls": tool_calls,
+                        "type": "tool_call"
+                    }
+                    logger.info(f"Yielding tool call chunk: {json.dumps(chunk['tool_calls'])}")
+                    yield chunk
                 
         logger.info("Message stream processing completed") 

@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 from typing import List, Dict, Any, Optional, Annotated
 from langchain.tools import tool
 from langchain_core.tools import InjectedToolCallId
@@ -12,7 +16,7 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
     def read_google_sheet(
         range_name: str,
         tool_call_id: Annotated[str, InjectedToolCallId]
-    ) -> Dict[str, Any]:
+    ) -> Command:
         """Tool for reading from Google Sheets.
         
         Args:
@@ -22,17 +26,23 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
         Returns:
             Command object with state update including the tool message
         """
+        logger.info(f"Reading from Google Sheets: {spreadsheet_id} - {range_name}")
+
         try:
             data = sheets_service.read_sheet_data(
                 spreadsheet_id, 
                 range_name
             )
+            # Format data for better readability
+            formatted_data = str(data) if isinstance(data, (str, int, float)) else str(data)
+            
             # Create a ToolMessage for the response
             tool_message = ToolMessage(
-                content=str(data),
+                content=formatted_data,
                 tool_call_id=tool_call_id,
-                name="read_google_sheet"
+                status="success"
             )
+            
             # Return a Command to update state with message
             return Command(
                 update={
@@ -41,15 +51,17 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
             )
         except Exception as e:
             error_msg = f"Error reading from Google Sheets: {str(e)}"
+            logger.error(error_msg)
+            
+            # Create error tool message
             tool_message = ToolMessage(
                 content=error_msg,
                 tool_call_id=tool_call_id,
-                name="read_google_sheet",
                 status="error"
             )
+            
             return Command(
                 update={
-                    "error": str(e),
                     "messages": [tool_message]
                 }
             )
@@ -60,7 +72,7 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
         values: List[List[Any]], 
         tool_call_id: Annotated[str, InjectedToolCallId],
         is_append: bool = False
-    ) -> Dict[str, Any]:
+    ) -> Command:
         """Tool for writing to Google Sheets.
         
         Args:
@@ -79,18 +91,22 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
                     range_name,
                     values
                 )
+                success_msg = f"Successfully appended data to {range_name}"
             else:
                 result = sheets_service.write_sheet_data(
                     spreadsheet_id,
                     range_name,
                     values
                 )
-            success_msg = f"Successfully {'appended' if is_append else 'wrote'} data to {range_name}"
+                success_msg = f"Successfully wrote data to {range_name}"
+            
+            # Create success tool message
             tool_message = ToolMessage(
                 content=success_msg,
                 tool_call_id=tool_call_id,
-                name="write_google_sheet"
+                status="success"
             )
+            
             return Command(
                 update={
                     "messages": [tool_message]
@@ -98,15 +114,17 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
             )
         except Exception as e:
             error_msg = f"Error writing to Google Sheets: {str(e)}"
+            logger.error(error_msg)
+            
+            # Create error tool message
             tool_message = ToolMessage(
                 content=error_msg,
                 tool_call_id=tool_call_id,
-                name="write_google_sheet",
                 status="error"
             )
+            
             return Command(
                 update={
-                    "error": str(e),
                     "messages": [tool_message]
                 }
             )
