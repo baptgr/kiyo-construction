@@ -32,6 +32,7 @@ def hello_world(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@csrf_exempt
 def chat(request):
     """
     Process a chat message and return a response.
@@ -42,8 +43,9 @@ def chat(request):
         message = data.get('message', '')
         google_access_token = data.get('google_access_token')
         spreadsheet_id = data.get('spreadsheet_id')
+        conversation_id = data.get('conversation_id', f'default_{time.time()}')
         
-        logger.info("Processing chat request")
+        logger.info(f"Processing chat request for conversation {conversation_id}")
         
         if not message:
             return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -66,11 +68,15 @@ def chat(request):
         else:
             enhanced_message = message
         
-        # Process message
+        # Process message with conversation ID
         response = async_to_sync(agent.process_message)(
             enhanced_message, 
+            conversation_id=conversation_id,
             spreadsheet_id=spreadsheet_id
         )
+        
+        # Add conversation ID to response
+        response['conversation_id'] = conversation_id
         
         return JsonResponse(response)
     except Exception as e:
@@ -90,8 +96,9 @@ def chat_stream(request):
         message = data.get('message', '')
         google_access_token = data.get('google_access_token')
         spreadsheet_id = data.get('spreadsheet_id')
+        conversation_id = data.get('conversation_id', f'default_{time.time()}')
         
-        logger.info(f"Processing chat stream request. Message: {message[:50]}...")
+        logger.info(f"Processing chat stream request for conversation {conversation_id}. Message: {message[:50]}...")
         
         if not message:
             logger.warning("Empty message received")
@@ -119,9 +126,10 @@ def chat_stream(request):
                 
                 logger.info(f"Starting message processing with enhanced message: {enhanced_message[:50]}...")
                 
-                # Get the agent's stream
+                # Get the agent's stream with conversation ID
                 agent_stream = agent.process_message_stream(
                     enhanced_message, 
+                    conversation_id=conversation_id,
                     spreadsheet_id=spreadsheet_id
                 )
                 

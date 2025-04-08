@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useSpreadsheet } from '@/context/SpreadsheetContext';
+import { useConversation } from '@/context/ConversationContext';
 
 /**
  * Core function to send requests to the agent API
@@ -13,10 +14,11 @@ async function sendAgentRequest(message, options = {}) {
   const {
     googleAccessToken = null,
     spreadsheetId = null,
+    conversationId = null,
     isStreaming = false
   } = options;
 
-  const endpoint = isStreaming ? '/api/agent/chat/stream' : '/api/agent/chat';
+  const endpoint = isStreaming ? '/api/agent/chat/stream/' : '/api/agent/chat/';
   
   return fetch(endpoint, {
     method: 'POST',
@@ -26,7 +28,8 @@ async function sendAgentRequest(message, options = {}) {
     body: JSON.stringify({
       message,
       google_access_token: googleAccessToken,
-      spreadsheet_id: spreadsheetId
+      spreadsheet_id: spreadsheetId,
+      conversation_id: conversationId
     }),
   });
 }
@@ -36,13 +39,15 @@ async function sendAgentRequest(message, options = {}) {
  * @param {string} message - The message to send to the agent
  * @param {string} googleAccessToken - Optional Google access token for Sheets access
  * @param {string} spreadsheetId - Optional spreadsheet ID to use for the task
+ * @param {string} conversationId - Optional conversation ID to use for the task
  * @returns {Promise<Object>} - The agent's response
  */
-export async function sendMessageToAgent(message, googleAccessToken = null, spreadsheetId = null) {
+export async function sendMessageToAgent(message, googleAccessToken = null, spreadsheetId = null, conversationId = null) {
   try {
     const response = await sendAgentRequest(message, {
       googleAccessToken,
       spreadsheetId,
+      conversationId,
       isStreaming: false
     });
     
@@ -63,12 +68,14 @@ export async function sendMessageToAgent(message, googleAccessToken = null, spre
  * @param {string} message - The message to send to the agent
  * @param {string} googleAccessToken - Optional Google access token for Sheets access
  * @param {string} spreadsheetId - Optional spreadsheet ID to use for the task
+ * @param {string} conversationId - Optional conversation ID to use for the task
  * @returns {Promise<Response>} - The streaming response object
  */
-export async function getAgentStreamResponse(message, googleAccessToken = null, spreadsheetId = null) {
+export async function getAgentStreamResponse(message, googleAccessToken = null, spreadsheetId = null, conversationId = null) {
   return sendAgentRequest(message, {
     googleAccessToken,
     spreadsheetId,
+    conversationId,
     isStreaming: true
   });
 }
@@ -80,19 +87,30 @@ export async function getAgentStreamResponse(message, googleAccessToken = null, 
 export function useAgentApi() {
   const { data: session } = useSession();
   const { spreadsheetId } = useSpreadsheet();
+  const { currentConversationId, startNewConversation } = useConversation();
   
   const sendMessage = async (message) => {
     // Extract Google access token from session if available
     const googleAccessToken = session?.accessToken || null;
     
-    return sendMessageToAgent(message, googleAccessToken, spreadsheetId);
+    return sendMessageToAgent(
+      message, 
+      googleAccessToken, 
+      spreadsheetId,
+      currentConversationId
+    );
   };
 
   const getStreamResponse = async (message) => {
     // Extract Google access token from session if available
     const googleAccessToken = session?.accessToken || null;
     
-    return getAgentStreamResponse(message, googleAccessToken, spreadsheetId);
+    return getAgentStreamResponse(
+      message, 
+      googleAccessToken, 
+      spreadsheetId,
+      currentConversationId
+    );
   };
   
   return {
@@ -100,7 +118,9 @@ export function useAgentApi() {
     getStreamResponse,
     isAuthenticated: !!session,
     googleAccessToken: session?.accessToken,
-    spreadsheetId
+    spreadsheetId,
+    currentConversationId,
+    startNewConversation
   };
 }
 
@@ -111,18 +131,26 @@ export function useAgentApi() {
 export function useAgentStreamApi() {
   const { data: session } = useSession();
   const { spreadsheetId } = useSpreadsheet();
+  const { currentConversationId, startNewConversation } = useConversation();
   
   const getStreamResponse = async (message) => {
     // Extract Google access token from session if available
     const googleAccessToken = session?.accessToken || null;
     
-    return getAgentStreamResponse(message, googleAccessToken, spreadsheetId);
+    return getAgentStreamResponse(
+      message, 
+      googleAccessToken, 
+      spreadsheetId,
+      currentConversationId
+    );
   };
 
   return {
     getStreamResponse,
     isAuthenticated: !!session,
     googleAccessToken: session?.accessToken,
-    spreadsheetId
+    spreadsheetId,
+    currentConversationId,
+    startNewConversation
   };
 } 

@@ -10,10 +10,14 @@ from langgraph.prebuilt import ToolNode
 from langgraph.graph.message import add_messages
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain.tools import tool
+from langgraph.checkpoint.memory import MemorySaver
 
 from .google_sheets_service import GoogleSheetsService
 
 logger = logging.getLogger(__name__)
+
+# Global memory saver instance
+_memory_saver = MemorySaver()
 
 # Updated instructions for the construction agent
 CONSTRUCTION_AGENT_INSTRUCTIONS = """
@@ -47,12 +51,14 @@ class ConstructionAgent:
     """Implementation of the construction agent using LangGraph."""
     
     def __init__(self, api_key: Optional[str] = None, 
-                 model_name: str = "gpt-4-turbo-preview",
+                 model_name: str = "gpt-4o-mini",
                  google_access_token: Optional[str] = None):
         """Initialize the construction agent."""
         self.api_key = api_key
         self.model_name = model_name
         self.google_access_token = google_access_token
+        # Use the global memory saver
+        self.memory = _memory_saver
         self.graph = self._create_graph()
 
     def _create_tools(self) -> List[Dict[str, Any]]:
@@ -124,25 +130,17 @@ class ConstructionAgent:
         # Create the agent node
         async def agent_node(state: AgentState) -> Dict:
             """Process messages and generate responses."""
-            # Get the last message
             messages = state["messages"]
-            # Generate response
             response = await llm_with_tools.ainvoke(messages)
-            # Return updated state
             return {"messages": [response]}
         
         # Add nodes to the graph
         workflow.add_node("agent", agent_node)
-        
-        # Set the entrypoint from START to agent
         workflow.add_edge(START, "agent")
         
         if tools:
-            # Create tool node
             tool_node = ToolNode(tools)
             workflow.add_node("tools", tool_node)
-            
-            # Add conditional edges
             workflow.add_conditional_edges(
                 "agent",
                 lambda x: "tools" if x.get("tool_calls") else END,
@@ -152,11 +150,10 @@ class ConstructionAgent:
                 }
             )
         else:
-            # If no tools, just go straight to END
             workflow.add_edge("agent", END)
         
-        # Compile the graph
-        return workflow.compile()
+        # Compile the graph with memory support
+        return workflow.compile(checkpointer=self.memory)
 
     async def process_message(
         self, 
@@ -165,15 +162,32 @@ class ConstructionAgent:
         spreadsheet_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Process a message and return a complete response."""
-        # Create initial state
+        logger.info(f"Processing message for conversation {conversation_id}")
+        
+        # Get existing messages from memory if conversation_id exists
+        existing_messages = []
+        if conversation_id:
+            try:
+                # Try to get existing state from memory
+                existing_state = self.memory.get_state(conversation_id)
+                if existing_state and "messages" in existing_state:
+                    existing_messages = existing_state["messages"]
+                    logger.info(f"Found existing messages for conversation {conversation_id}")
+            except Exception as e:
+                logger.warning(f"Could not retrieve messages for conversation {conversation_id}: {e}")
+        
+        # Create initial state with existing messages + new message
         state = AgentState(
-            messages=[HumanMessage(content=message)],
+            messages=existing_messages + [HumanMessage(content=message)],
             google_access_token=self.google_access_token,
             spreadsheet_id=spreadsheet_id
         )
         
-        # Run the graph
-        result = await self.graph.ainvoke(state)
+        # Add configuration for thread memory
+        config = {"configurable": {"thread_id": conversation_id}} if conversation_id else {}
+        
+        # Run the graph with thread configuration
+        result = await self.graph.ainvoke(state, config=config)
         
         # Extract the final message
         final_message = result["messages"][-1]
@@ -189,20 +203,33 @@ class ConstructionAgent:
         spreadsheet_id: Optional[str] = None
     ) -> AsyncIterator[Dict[str, Any]]:
         """Process a message and yield chunks of the response as they're generated."""
-        logger.info("Starting message stream processing")
-        # Create initial state
+        logger.info(f"Starting message stream processing for conversation {conversation_id}")
+        
+        # Get existing messages from memory if conversation_id exists
+        existing_messages = []
+        if conversation_id:
+            try:
+                # Try to get existing state from memory
+                existing_state = self.memory.get_state(conversation_id)
+                if existing_state and "messages" in existing_state:
+                    existing_messages = existing_state["messages"]
+                    logger.info(f"Found existing messages for conversation {conversation_id}")
+            except Exception as e:
+                logger.warning(f"Could not retrieve messages for conversation {conversation_id}: {e}")
+        
+        # Create initial state with existing messages + new message
         state = AgentState(
-            messages=[HumanMessage(content=message)],
+            messages=existing_messages + [HumanMessage(content=message)],
             google_access_token=self.google_access_token,
             spreadsheet_id=spreadsheet_id   
         )
         
+        # Add configuration for thread memory
+        config = {"configurable": {"thread_id": conversation_id}} if conversation_id else {}
+        
         logger.info("Starting graph streaming")
-        # Stream the response with both messages and updates modes
-        async for stream_type, event in self.graph.astream(state, stream_mode=["messages"]):
-            #logger.info(f"Received event of type {stream_type}")
-            #logger.info(f"Event: {event}")
-
+        # Stream the response with thread configuration
+        async for stream_type, event in self.graph.astream(state, config=config, stream_mode=["messages"]):
             if stream_type == "messages":
                 message, metadata = event
                 if hasattr(message, 'content'):

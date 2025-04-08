@@ -2,6 +2,7 @@ import { Box, Paper, Typography } from '@mui/material';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSpreadsheet } from '@/context/SpreadsheetContext';
+import { useConversation } from '@/context/ConversationContext';
 import { useAgentStreamApi } from '@/utils/agentAPI';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -11,6 +12,12 @@ export default function ChatSection() {
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState(null);
   const { getStreamResponse } = useAgentStreamApi();
+  const { conversationId, startNewConversation } = useConversation();
+
+  // Start a new conversation when component mounts
+  useEffect(() => {
+    startNewConversation();
+  }, []);
 
   // Add event listener for error dismissal
   useEffect(() => {
@@ -70,7 +77,7 @@ export default function ChatSection() {
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      const response = await getStreamResponse(messageText);
+      const response = await getStreamResponse(messageText, conversationId);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
