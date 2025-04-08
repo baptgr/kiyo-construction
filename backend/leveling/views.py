@@ -54,8 +54,10 @@ def chat(request):
         api_key = os.environ.get('OPENAI_API_KEY')
         agent = ConstructionAgent(
             api_key=api_key,
-            google_access_token=google_access_token
+            google_access_token=google_access_token, 
+            spreadsheet_id=spreadsheet_id
         )
+        
         
         # Store spreadsheet ID in the conversation context if provided
         if spreadsheet_id:

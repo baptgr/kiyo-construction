@@ -5,7 +5,7 @@ import logging
 import json
 
 from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, Graph, END, START
+from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import ToolNode
 from langgraph.graph.message import add_messages
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
@@ -13,6 +13,7 @@ from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 
 from .google_sheets_service import GoogleSheetsService
+from .tools import create_google_sheets_tools
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,13 @@ class ConstructionAgent:
     
     def __init__(self, api_key: Optional[str] = None, 
                  model_name: str = "gpt-4o-mini",
-                 google_access_token: Optional[str] = None):
+                 google_access_token: Optional[str] = None,
+                 spreadsheet_id: Optional[str] = None):
         """Initialize the construction agent."""
         self.api_key = api_key
         self.model_name = model_name
         self.google_access_token = google_access_token
+        self.spreadsheet_id = spreadsheet_id  
         # Use the global memory saver
         self.memory = _memory_saver
         self.graph = self._create_graph()
@@ -67,48 +70,11 @@ class ConstructionAgent:
         
         if self.google_access_token:
             sheets_service = GoogleSheetsService(self.google_access_token)
-            
-            @tool
-            async def read_google_sheet(range_name: str) -> Dict[str, Any]:
-                """Tool for reading from Google Sheets."""
-                try:
-                    data = await sheets_service.read_sheet_data(
-                        self.spreadsheet_id, 
-                        range_name
-                    )
-                    return {"data": data}
-                except Exception as e:
-                    return {"error": str(e)}
-
-            @tool
-            async def write_google_sheet(
-                range_name: str, 
-                values: List[List[Any]], 
-                is_append: bool = False
-            ) -> Dict[str, Any]:
-                """Tool for writing to Google Sheets."""
-                try:
-                    if is_append:
-                        result = await sheets_service.append_sheet_data(
-                            self.spreadsheet_id,
-                            range_name,
-                            values
-                        )
-                    else:
-                        result = await sheets_service.write_sheet_data(
-                            self.spreadsheet_id,
-                            range_name,
-                            values
-                        )
-                    return {"result": result}
-                except Exception as e:
-                    return {"error": str(e)}
-
-            tools.extend([read_google_sheet, write_google_sheet])
+            tools.extend(create_google_sheets_tools(sheets_service, self.spreadsheet_id))
         
         return tools
 
-    def _create_graph(self) -> Graph:
+    def _create_graph(self) -> StateGraph:
         """Create the LangGraph workflow."""
         # Initialize the graph with our state type
         workflow = StateGraph(AgentState)
