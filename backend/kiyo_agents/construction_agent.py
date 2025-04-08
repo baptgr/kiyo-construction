@@ -43,8 +43,7 @@ class ConstructionAgent(AgentInterface):
     
     def __init__(self, api_key: Optional[str] = None, 
                  model_name: str = "gpt-4o", 
-                 google_access_token: Optional[str] = None,
-                 memory_store: Optional[Any] = None):
+                 google_access_token: Optional[str] = None):
         """Initialize the construction agent."""
         
         # Store the API key
@@ -52,9 +51,6 @@ class ConstructionAgent(AgentInterface):
         
         # Store Google access token if provided
         self.google_access_token = google_access_token
-        
-        # Store memory store
-        self.memory = memory_store
         
         # Import tools from google_sheets_tools
         from .google_sheets_tools import (
@@ -102,21 +98,8 @@ class ConstructionAgent(AgentInterface):
         # Store the model name for use in streaming
         self.model_name = model_name
     
-    async def process_message(self, message: str, conversation_id: Optional[str] = None) -> Dict[str, Any]:
+    async def process_message(self, message: str) -> Dict[str, Any]:
         """Process a message and return a complete response."""
-        # Use default conversation_id if not provided
-        conversation_id = conversation_id or str(uuid.uuid4())
-        
-        # Get conversation context if we have a memory store
-        context = ""
-        if self.memory:
-            # Ensure conversation exists
-            await self.memory.get_or_create_conversation(conversation_id)
-            # Get context from previous messages
-            context = await self.memory.get_conversation_context(conversation_id)
-            # Store the user message
-            await self.memory.add_message(conversation_id, "user", message)
-        
         # Create a context object for the RunContextWrapper to access
         tool_context = {}
         if self.google_access_token:
@@ -125,51 +108,24 @@ class ConstructionAgent(AgentInterface):
                 "tool_context": {"google_access_token": self.google_access_token},
                 "kwargs": {"google_access_token": self.google_access_token}
             })
-        
-        # Enhance message with context if exists
-        enhanced_message = f"{context}User: {message}" if context else message
         
         # Use the run method with context
         logger.info(f"Running agent with message")
         result = await Runner.run(
             self.agent, 
-            enhanced_message,
+            message,
             context=tool_context
         )
         
-        # Store the assistant's response if we have a memory store
-        if self.memory:
-            await self.memory.add_message(
-                conversation_id, 
-                "assistant", 
-                result.final_output,
-                item_type="response",
-                metadata={"items": [item.dict() for item in result.new_items]}
-            )
-        
         # Format the response
         response = {
-            "text": result.final_output,
-            "conversation_id": conversation_id
+            "text": result.final_output
         }
         
         return response
     
-    async def process_message_stream(self, message: str, conversation_id: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
+    async def process_message_stream(self, message: str) -> AsyncIterator[Dict[str, Any]]:
         """Process a message and yield chunks of the response as they're generated."""
-        # Use default conversation_id if not provided
-        conversation_id = conversation_id or str(uuid.uuid4())
-        
-        # Get conversation context if we have a memory store
-        context = ""
-        if self.memory:
-            # Ensure conversation exists
-            await self.memory.get_or_create_conversation(conversation_id)
-            # Get context from previous messages
-            context = await self.memory.get_conversation_context(conversation_id)
-            # Store the user message
-            await self.memory.add_message(conversation_id, "user", message)
-        
         # Create a context object for the RunContextWrapper to access
         tool_context = {}
         if self.google_access_token:
@@ -179,61 +135,36 @@ class ConstructionAgent(AgentInterface):
                 "kwargs": {"google_access_token": self.google_access_token}
             })
         
-        # Enhance message with context if exists
-        enhanced_message = f"{context}User: {message}" if context else message
-        
         # Use the streaming method with context
         result = Runner.run_streamed(
             self.agent, 
-            input=enhanced_message,
+            input=message,
             context=tool_context
         )
-        
-        # Variable to collect the full response
-        full_response = ""
         
         try:
             async for event in result.stream_events():
                 if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
-                    # Collect the response
-                    full_response += event.data.delta
-                    
                     yield {
                         "text": event.data.delta,
-                        "finished": False,
-                        "conversation_id": conversation_id
+                        "finished": False
                     }
                 elif event.type == "final_output_event":
-                    # Store the complete response if we have a memory store
-                    if self.memory and full_response:
-                        await self.memory.add_message(
-                            conversation_id, 
-                            "assistant", 
-                            full_response,
-                            item_type="response",
-                            metadata={"items": [item.dict() for item in result.new_items]}
-                        )
-                    
-                    # Send a final event indicating completion
                     yield {
                         "text": "",
-                        "finished": True,
-                        "conversation_id": conversation_id
+                        "finished": True
                     }
         except Exception as e:
             # Handle context errors gracefully
             if "ContextVar" in str(e) or "current_trace" in str(e):
-                # Just yield a final chunk if we encounter trace errors
                 yield {
                     "text": "",
-                    "finished": True,
-                    "conversation_id": conversation_id
+                    "finished": True
                 }
             else:
-                # Re-raise other errors
                 raise
     
-    def get_stream(self, message: str, conversation_id: Optional[str] = None) -> AsyncIterator[Dict[str, Any]]:
+    def get_stream(self, message: str) -> AsyncIterator[Dict[str, Any]]:
         """
         Get a streaming response from the agent.
         
@@ -243,29 +174,13 @@ class ConstructionAgent(AgentInterface):
         
         Args:
             message: The message to process
-            conversation_id: Optional conversation ID for tracking
             
         Returns:
             An async iterator yielding chunks of the response
         """
         # Create an async generator to handle the stream
         async def token_stream():
-            # Use default conversation_id if not provided
-            conv_id = conversation_id or str(uuid.uuid4())
-            logger.info(f"get_stream called with conversation_id: {conv_id}")
-            
-            # Get conversation context if we have a memory store
-            context = ""
-            if self.memory:
-                # Ensure conversation exists
-                await self.memory.get_or_create_conversation(conv_id)
-                # Get context from previous messages
-                context = await self.memory.get_conversation_context(conv_id)
-                # Store the user message
-                await self.memory.add_message(conv_id, "user", message)
-            
-            # Enhance message with context if exists
-            enhanced_message = f"{context}User: {message}" if context else message
+            logger.info("get_stream called")
             
             full_text = ""
             
@@ -284,7 +199,7 @@ class ConstructionAgent(AgentInterface):
                 logger.info(f"Running streaming agent with message")
                 streamed_result = Runner.run_streamed(
                     self.agent, 
-                    input=enhanced_message,
+                    input=message,
                     context=tool_context
                 )
                 
@@ -302,27 +217,15 @@ class ConstructionAgent(AgentInterface):
                             # Send the updated text
                             yield {
                                 "text": full_text,
-                                "finished": False,
-                                "conversation_id": conv_id
+                                "finished": False
                             }
                             
                     # When we reach the final output, signal completion
                     elif event.type == "final_output_event":
-                        # Store the complete response if we have a memory store
-                        if self.memory and full_text:
-                            await self.memory.add_message(
-                                conv_id, 
-                                "assistant", 
-                                full_text,
-                                item_type="response",
-                                metadata={"items": [item.dict() for item in streamed_result.new_items]}
-                            )
-                        
                         # Send a final event indicating completion
                         yield {
                             "text": "",
-                            "finished": True,
-                            "conversation_id": conv_id
+                            "finished": True
                         }
             except Exception as e:
                 # Log the error and yield an error response
@@ -331,8 +234,7 @@ class ConstructionAgent(AgentInterface):
                 yield {
                     "text": f"Error: {str(e)}",
                     "error": str(e),
-                    "finished": True,
-                    "conversation_id": conv_id
+                    "finished": True
                 }
             
         # Return the token stream generator
@@ -342,14 +244,12 @@ class ConstructionAgent(AgentInterface):
 class ConstructionAgentFactory:
     """Factory for creating construction agent instances."""
     
-    def __init__(self, api_key: Optional[str] = None, google_access_token: Optional[str] = None, memory_store: Optional[Any] = None):
+    def __init__(self, api_key: Optional[str] = None, google_access_token: Optional[str] = None):
         logger.info("Initializing ConstructionAgentFactory")
         self.api_key = api_key
         self.google_access_token = google_access_token
-        self.memory_store = memory_store
         logger.info(f"Factory initialized with API key: {'set' if api_key else 'not set'}, " 
-                   f"Google token: {'set' if google_access_token else 'not set'}, "
-                   f"Memory store: {'set' if memory_store else 'not set'}")
+                   f"Google token: {'set' if google_access_token else 'not set'}")
         
     def create_agent(self, agent_type: str = "construction") -> AgentInterface:
         """Create and return an agent of the specified type."""
@@ -357,8 +257,7 @@ class ConstructionAgentFactory:
         if agent_type.lower() == "construction":
             agent = ConstructionAgent(
                 api_key=self.api_key,
-                google_access_token=self.google_access_token,
-                memory_store=self.memory_store
+                google_access_token=self.google_access_token
             )
             logger.info(f"Factory created construction agent with ID: {id(agent)}")
             return agent

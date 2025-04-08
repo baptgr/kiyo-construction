@@ -7,7 +7,6 @@ import json
 import asyncio
 import os
 import time
-import uuid
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
 from asgiref.sync import async_to_sync, sync_to_async
 from django.views.decorators.csrf import csrf_exempt
@@ -17,18 +16,13 @@ from typing import AsyncGenerator
 from contextvars import ContextVar
 
 from kiyo_agents.construction_agent import ConstructionAgentFactory
-from .services import DatabaseMemoryStore
 
 # Configure more detailed logging
 logger = logging.getLogger(__name__)
 
 # Create context variable at module level
-current_conversation_id = ContextVar('current_conversation_id', default=None)
 current_loop = asyncio.new_event_loop()
 asyncio.set_event_loop(current_loop)
-
-# Create a shared memory store instance
-memory_store = DatabaseMemoryStore()
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -50,25 +44,19 @@ def chat(request):
         # Get message from request
         data = json.loads(request.body)
         message = data.get('message', '')
-        conversation_id = data.get('conversation_id')
         google_access_token = data.get('google_access_token')
         spreadsheet_id = data.get('spreadsheet_id')
         
-        # Generate a new UUID if conversation_id is not provided or is 'default'
-        if not conversation_id or conversation_id == 'default':
-            conversation_id = str(uuid.uuid4())
-        
-        logger.info(f"Processing chat for conversation_id: {conversation_id}")
+        logger.info("Processing chat request")
         
         if not message:
             return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Create a new agent instance with memory store
+        # Create a new agent instance
         api_key = os.environ.get('OPENAI_API_KEY')
         factory = ConstructionAgentFactory(
             api_key=api_key,
-            google_access_token=google_access_token,
-            memory_store=memory_store
+            google_access_token=google_access_token
         )
         agent = factory.create_agent()
         
@@ -84,7 +72,7 @@ def chat(request):
             enhanced_message = message
         
         # Process message (synchronously in this case)
-        response = async_to_sync(agent.process_message)(enhanced_message, conversation_id)
+        response = async_to_sync(agent.process_message)(enhanced_message)
         
         return JsonResponse(response)
     except Exception as e:
@@ -102,33 +90,25 @@ def chat_stream(request):
     try:
         data = json.loads(request.body)
         message = data.get('message', '')
-        conversation_id = data.get('conversation_id')
         google_access_token = data.get('google_access_token')
         spreadsheet_id = data.get('spreadsheet_id')
         
-        # Generate a new UUID if conversation_id is not provided or is 'default'
-        if not conversation_id or conversation_id == 'default':
-            conversation_id = str(uuid.uuid4())
-        
-        logger.info(f"Processing chat_stream for conversation_id: {conversation_id}")
+        logger.info("Processing chat stream request")
         
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
         async def generate_stream() -> AsyncGenerator[str, None]:
-            # Set conversation ID in context
-            token = current_conversation_id.set(conversation_id)
             try:
                 # SSE header
                 yield "retry: 1000\n\n"
                 
                 try:
-                    # Create a new agent instance with memory store
+                    # Create a new agent instance
                     api_key = os.environ.get('OPENAI_API_KEY')
                     factory = ConstructionAgentFactory(
                         api_key=api_key,
-                        google_access_token=google_access_token,
-                        memory_store=memory_store
+                        google_access_token=google_access_token
                     )
                     agent = factory.create_agent()
                     
@@ -143,7 +123,7 @@ def chat_stream(request):
                         enhanced_message = message
                     
                     # Get the stream from the agent using the existing event loop
-                    stream = agent.get_stream(enhanced_message, conversation_id)
+                    stream = agent.get_stream(enhanced_message)
                     
                     async for chunk in stream:
                         if 'error' in chunk:
@@ -159,9 +139,9 @@ def chat_stream(request):
                     logger.error(f"Error in streaming: {str(e)}", exc_info=True)
                     yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
                     
-            finally:
-                # Reset conversation ID context
-                current_conversation_id.reset(token)
+            except Exception as e:
+                logger.error(f"Error in stream generation: {str(e)}", exc_info=True)
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
         # Create the response using the async generator
         async def run_stream():
