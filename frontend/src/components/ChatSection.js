@@ -32,21 +32,12 @@ export default function ChatSection() {
   }, []);
 
   // Update assistant message text
-  const updateAssistantMessage = useCallback((newText, isIncremental = false) => {
+  const updateAssistantMessage = useCallback((newText) => {
     setMessages(prev => {
       const newMessages = [...prev];
       const lastMessage = newMessages[newMessages.length - 1];
       if (lastMessage?.sender === 'assistant') {
-        const oldText = lastMessage.text;
-        // If we're appending text, make sure we don't duplicate it
-        if (isIncremental) {
-          // Check if the new text is already at the end of the current text
-          if (!oldText.endsWith(newText)) {
-            lastMessage.text = oldText + newText;
-          }
-        } else {
-          lastMessage.text = newText;
-        }
+        lastMessage.text = newText;
       }
       return newMessages;
     });

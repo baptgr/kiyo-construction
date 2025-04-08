@@ -9,7 +9,7 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
     """Create Google Sheets related tools with proper error handling and state updates."""
     
     @tool
-    async def read_google_sheet(
+    def read_google_sheet(
         range_name: str,
         tool_call_id: Annotated[str, InjectedToolCallId]
     ) -> Dict[str, Any]:
@@ -23,7 +23,7 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
             Command object with state update including the tool message
         """
         try:
-            data = await sheets_service.read_sheet_data(
+            data = sheets_service.read_sheet_data(
                 spreadsheet_id, 
                 range_name
             )
@@ -55,7 +55,7 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
             )
 
     @tool
-    async def write_google_sheet(
+    def write_google_sheet(
         range_name: str, 
         values: List[List[Any]], 
         tool_call_id: Annotated[str, InjectedToolCallId],
@@ -74,13 +74,13 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
         """
         try:
             if is_append:
-                result = await sheets_service.append_sheet_data(
+                result = sheets_service.append_sheet_data(
                     spreadsheet_id,
                     range_name,
                     values
                 )
             else:
-                result = await sheets_service.write_sheet_data(
+                result = sheets_service.write_sheet_data(
                     spreadsheet_id,
                     range_name,
                     values

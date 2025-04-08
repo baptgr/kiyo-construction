@@ -4,18 +4,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 import json
-import asyncio
 import os
 import time
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
-from asgiref.sync import async_to_sync
-from django.views.decorators.csrf import csrf_exempt
 import logging
 import traceback
-from typing import AsyncGenerator
 
 from kiyo_agents.construction_agent import ConstructionAgent
-from .sse_utils import convert_agent_stream_to_sse, create_sse_response
 
 # Configure more detailed logging
 logger = logging.getLogger(__name__)
@@ -32,7 +27,6 @@ def hello_world(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def chat(request):
     """
     Process a chat message and return a response.
@@ -58,7 +52,6 @@ def chat(request):
             spreadsheet_id=spreadsheet_id
         )
         
-        
         # Store spreadsheet ID in the conversation context if provided
         if spreadsheet_id:
             # Update conversation context
@@ -71,7 +64,7 @@ def chat(request):
             enhanced_message = message
         
         # Process message with conversation ID
-        response = async_to_sync(agent.process_message)(
+        response = agent.process_message(
             enhanced_message, 
             conversation_id=conversation_id,
             spreadsheet_id=spreadsheet_id
@@ -88,7 +81,6 @@ def chat(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@csrf_exempt
 def chat_stream(request):
     """
     Stream the agent's response using Server-Sent Events (SSE)
@@ -106,7 +98,7 @@ def chat_stream(request):
             logger.warning("Empty message received")
             return JsonResponse({'error': 'Message is required'}, status=400)
 
-        async def generate_stream() -> AsyncGenerator[str, None]:
+        def generate_stream():
             try:
                 logger.info("Creating agent instance")
                 # Create a new agent instance
@@ -129,16 +121,18 @@ def chat_stream(request):
                 logger.info(f"Starting message processing with enhanced message: {enhanced_message[:50]}...")
                 
                 # Get the agent's stream with conversation ID
-                agent_stream = agent.process_message_stream(
+                for chunk in agent.process_message_stream(
                     enhanced_message, 
                     conversation_id=conversation_id,
                     spreadsheet_id=spreadsheet_id
-                )
+                ):
+                    if chunk["type"] == "message":
+                        yield f"event: chunk\ndata: {json.dumps({'text': chunk['text'], 'finished': False})}\n\n"
+                    elif chunk["type"] == "tool_call":
+                        yield f"event: tool_call\ndata: {json.dumps(chunk['tool_calls'])}\n\n"
                 
-                logger.info("Starting SSE conversion")
-                # Convert to SSE format
-                async for sse_event in convert_agent_stream_to_sse(agent_stream):
-                    yield sse_event
+                # Send final done event
+                yield f"event: done\ndata: {json.dumps({'finished': True})}\n\n"
                     
             except Exception as e:
                 logger.error(f"Error in streaming: {str(e)}", exc_info=True)
@@ -146,7 +140,11 @@ def chat_stream(request):
                 
         logger.info("Creating SSE response")
         # Create and return the SSE response
-        response = create_sse_response(generate_stream())
+        response = StreamingHttpResponse(
+            generate_stream(),
+            content_type='text/event-stream'
+        )
+        response['Cache-Control'] = 'no-cache'
         response['X-Accel-Buffering'] = 'no'
         return response
         

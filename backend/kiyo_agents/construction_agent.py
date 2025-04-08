@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Any, AsyncIterator, Optional
+from typing import List, Dict, Any, Optional
 from typing_extensions import TypedDict, Annotated
 import logging
 import json
@@ -94,10 +94,10 @@ class ConstructionAgent:
         llm_with_tools = llm.bind_tools(tools)
         
         # Create the agent node
-        async def agent_node(state: AgentState) -> Dict:
+        def agent_node(state: AgentState) -> Dict:
             """Process messages and generate responses."""
             messages = state["messages"]
-            response = await llm_with_tools.ainvoke(messages)
+            response = llm_with_tools.invoke(messages)
             return {"messages": [response]}
         
         # Add nodes to the graph
@@ -121,7 +121,7 @@ class ConstructionAgent:
         # Compile the graph with memory support
         return workflow.compile(checkpointer=self.memory)
 
-    async def process_message(
+    def process_message(
         self, 
         message: str, 
         conversation_id: Optional[str] = None,
@@ -153,7 +153,7 @@ class ConstructionAgent:
         config = {"configurable": {"thread_id": conversation_id}} if conversation_id else {}
         
         # Run the graph with thread configuration
-        result = await self.graph.ainvoke(state, config=config)
+        result = self.graph.invoke(state, config=config)
         
         # Extract the final message
         final_message = result["messages"][-1]
@@ -162,13 +162,13 @@ class ConstructionAgent:
             "tool_calls": getattr(final_message, "tool_calls", None)
         }
 
-    async def process_message_stream(
+    def process_message_stream(
         self, 
         message: str,
         conversation_id: Optional[str] = None,
         spreadsheet_id: Optional[str] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
-        """Process a message and yield chunks of the response as they're generated."""
+    ) -> Dict[str, Any]:
+        """Process a message and stream the response."""
         logger.info(f"Starting message stream processing for conversation {conversation_id}")
         
         # Get existing messages from memory if conversation_id exists
@@ -195,12 +195,15 @@ class ConstructionAgent:
         
         logger.info("Starting graph streaming")
         # Stream the response with thread configuration
-        async for stream_type, event in self.graph.astream(state, config=config, stream_mode=["messages"]):
+        accumulated_text = ""
+        for stream_type, event in self.graph.stream(state, config=config, stream_mode=["messages"]):
             if stream_type == "messages":
                 message, metadata = event
                 if hasattr(message, 'content'):
+                    # Accumulate the text
+                    accumulated_text += message.content
                     chunk = {
-                        "text": message.content,
+                        "text": accumulated_text,  # Send the full accumulated text
                         "tool_calls": getattr(message, "tool_calls", None),
                         "type": "message"
                     }
