@@ -8,21 +8,17 @@ import asyncio
 import os
 import time
 from django.http import StreamingHttpResponse, JsonResponse, HttpResponse
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import async_to_sync
 from django.views.decorators.csrf import csrf_exempt
 import logging
 import traceback
 from typing import AsyncGenerator
-from contextvars import ContextVar
 
-from kiyo_agents.construction_agent import ConstructionAgentFactory
+from kiyo_agents.construction_agent import ConstructionAgent
+from .sse_utils import convert_agent_stream_to_sse, create_sse_response
 
 # Configure more detailed logging
 logger = logging.getLogger(__name__)
-
-# Create context variable at module level
-current_loop = asyncio.new_event_loop()
-asyncio.set_event_loop(current_loop)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -54,11 +50,10 @@ def chat(request):
         
         # Create a new agent instance
         api_key = os.environ.get('OPENAI_API_KEY')
-        factory = ConstructionAgentFactory(
+        agent = ConstructionAgent(
             api_key=api_key,
             google_access_token=google_access_token
         )
-        agent = factory.create_agent()
         
         # Store spreadsheet ID in the conversation context if provided
         if spreadsheet_id:
@@ -71,8 +66,11 @@ def chat(request):
         else:
             enhanced_message = message
         
-        # Process message (synchronously in this case)
-        response = async_to_sync(agent.process_message)(enhanced_message)
+        # Process message
+        response = async_to_sync(agent.process_message)(
+            enhanced_message, 
+            spreadsheet_id=spreadsheet_id
+        )
         
         return JsonResponse(response)
     except Exception as e:
@@ -85,7 +83,7 @@ def chat(request):
 @csrf_exempt
 def chat_stream(request):
     """
-    Stream the agent's response word by word using SSE
+    Stream the agent's response using Server-Sent Events (SSE)
     """
     try:
         data = json.loads(request.body)
@@ -93,94 +91,55 @@ def chat_stream(request):
         google_access_token = data.get('google_access_token')
         spreadsheet_id = data.get('spreadsheet_id')
         
-        logger.info("Processing chat stream request")
+        logger.info(f"Processing chat stream request. Message: {message[:50]}...")
         
         if not message:
+            logger.warning("Empty message received")
             return JsonResponse({'error': 'Message is required'}, status=400)
 
         async def generate_stream() -> AsyncGenerator[str, None]:
             try:
-                # SSE header
-                yield "retry: 1000\n\n"
+                logger.info("Creating agent instance")
+                # Create a new agent instance
+                api_key = os.environ.get('OPENAI_API_KEY')
+                agent = ConstructionAgent(
+                    api_key=api_key,
+                    google_access_token=google_access_token
+                )
                 
-                try:
-                    # Create a new agent instance
-                    api_key = os.environ.get('OPENAI_API_KEY')
-                    factory = ConstructionAgentFactory(
-                        api_key=api_key,
-                        google_access_token=google_access_token
-                    )
-                    agent = factory.create_agent()
-                    
-                    # Store spreadsheet ID in the conversation context if provided
-                    if spreadsheet_id:
-                        if not message.lower().startswith("use spreadsheet"):
-                            enhanced_message = f"Use spreadsheet with ID {spreadsheet_id} for this task. {message}"
-                            logger.info(f"Enhanced message with spreadsheet ID: {spreadsheet_id}")
-                        else:
-                            enhanced_message = message
+                # Store spreadsheet ID in the conversation context if provided
+                if spreadsheet_id:
+                    if not message.lower().startswith("use spreadsheet"):
+                        enhanced_message = f"Use spreadsheet with ID {spreadsheet_id} for this task. {message}"
+                        logger.info(f"Enhanced message with spreadsheet ID: {spreadsheet_id}")
                     else:
                         enhanced_message = message
-                    
-                    # Get the stream from the agent using the existing event loop
-                    stream = agent.get_stream(enhanced_message)
-                    
-                    async for chunk in stream:
-                        if 'error' in chunk:
-                            logger.error(f"Error in stream response: {chunk['error']}")
-                            yield f"event: error\ndata: {json.dumps({'error': chunk['error']})}\n\n"
-                        elif chunk.get('finished', False):
-                            logger.info("Stream finished")
-                            yield f"event: done\ndata: {json.dumps({'finished': True})}\n\n"
-                        elif 'text' in chunk:
-                            yield f"event: chunk\ndata: {json.dumps({'text': chunk['text'], 'finished': False})}\n\n"
-                            
-                except Exception as e:
-                    logger.error(f"Error in streaming: {str(e)}", exc_info=True)
-                    yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                else:
+                    enhanced_message = message
+                
+                logger.info(f"Starting message processing with enhanced message: {enhanced_message[:50]}...")
+                
+                # Get the agent's stream
+                agent_stream = agent.process_message_stream(
+                    enhanced_message, 
+                    spreadsheet_id=spreadsheet_id
+                )
+                
+                logger.info("Starting SSE conversion")
+                # Convert to SSE format
+                async for sse_event in convert_agent_stream_to_sse(agent_stream):
+                    yield sse_event
                     
             except Exception as e:
-                logger.error(f"Error in stream generation: {str(e)}", exc_info=True)
+                logger.error(f"Error in streaming: {str(e)}", exc_info=True)
                 yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-
-        # Create the response using the async generator
-        async def run_stream():
-            return [chunk async for chunk in generate_stream()]
-
-        # Run the stream in the current event loop
-        response = StreamingHttpResponse(
-            current_loop.run_until_complete(run_stream()),
-            content_type='text/event-stream'
-        )
-        
-        # Required headers for SSE
-        response['Cache-Control'] = 'no-cache'
+                
+        logger.info("Creating SSE response")
+        # Create and return the SSE response
+        response = create_sse_response(generate_stream())
         response['X-Accel-Buffering'] = 'no'
-        
         return response
         
     except Exception as e:
         logger.error(f"Error in chat_stream: {str(e)}", exc_info=True)
-        return JsonResponse({'error': str(e)}, status=500)
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def delete_conversation(request):
-    """Delete a conversation and its messages."""
-    try:
-        data = json.loads(request.body)
-        conversation_id = data.get('conversation_id')
-        
-        if not conversation_id:
-            return JsonResponse({'error': 'conversation_id is required'}, status=400)
-            
-        success = async_to_sync(memory_store.delete_conversation)(conversation_id)
-        
-        if success:
-            return JsonResponse({'status': 'success'})
-        else:
-            return JsonResponse({'error': 'Conversation not found'}, status=404)
-            
-    except Exception as e:
-        logger.error(f"Error deleting conversation: {str(e)}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
