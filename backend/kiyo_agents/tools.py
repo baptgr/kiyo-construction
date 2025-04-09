@@ -11,6 +11,8 @@ from .google_sheets_service import GoogleSheetsService
 
 def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_id: str) -> List[Dict[str, Any]]:
     """Create Google Sheets related tools with proper error handling and state updates."""
+
+    logger.info(f"Creating Google Sheets tools for spreadsheet: {spreadsheet_id}")
     
     @tool
     def read_google_sheet(

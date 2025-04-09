@@ -64,6 +64,9 @@ class ConstructionAgent:
         self.memory = _memory_saver
         self.graph = self._create_graph()
 
+        logger.info(f"Google access token: {self.google_access_token}")
+        logger.info(f"Spreadsheet ID: {self.spreadsheet_id}")
+
     def _create_tools(self) -> List[Dict[str, Any]]:
         """Create the tools for the agent."""
         tools = []
@@ -207,12 +210,12 @@ class ConstructionAgent:
         # Add configuration for thread memory
         config = {"configurable": {"thread_id": conversation_id}} if conversation_id else {}
         
-        logger.info("Starting graph streaming")
+        #logger.info("Starting graph streaming")
         # Stream the response with thread configuration
         accumulated_text = ""
         for stream_type, event in self.graph.stream(state, config=config, stream_mode=["messages", "updates"]):
             import pprint
-            logger.info(f"Received event: {pprint.pformat(event)}")
+            #logger.info(f"Received event: {pprint.pformat(event)}")
             if stream_type == "messages":
                 message, metadata = event
                 if hasattr(message, 'content'):
@@ -224,7 +227,7 @@ class ConstructionAgent:
                             "tool_calls": getattr(message, "tool_calls", None),
                             "type": "message"
                         }
-                        logger.info(f"Yielding message chunk: {chunk}...")
+                        #logger.info(f"Yielding message chunk: {chunk}...")
                         yield chunk
             elif stream_type == "updates" and "tool_calls" in event:
                 # Only yield tool calls if they have valid names
@@ -234,7 +237,7 @@ class ConstructionAgent:
                         "tool_calls": tool_calls,
                         "type": "tool_call"
                     }
-                    logger.info(f"Yielding tool call chunk: {json.dumps(chunk['tool_calls'])}")
+                    #logger.info(f"Yielding tool call chunk: {json.dumps(chunk['tool_calls'])}")
                     yield chunk
                 
         logger.info("Message stream processing completed") 
