@@ -16,34 +16,82 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, account }) {
-      // Persist the OAuth access_token and refresh_token to the token right after signin
-      if (account) {
-        // Log token info for debugging
-        console.log("Account info received:", {
-          hasAccessToken: !!account.access_token,
-          hasRefreshToken: !!account.refresh_token,
-          tokenType: account.token_type,
+    async jwt({ token, account, user }) {
+      // Initial sign in
+      if (account && user) {
+        console.log("Initial sign in - Account info received:", {
+          accessToken: !!account.access_token,
+          refreshToken: !!account.refresh_token,
           expiresAt: account.expires_at
         });
-        
-        token.accessToken = account.access_token;
-        token.refreshToken = account.refresh_token;
-        token.expiresAt = account.expires_at;
+        return {
+          accessToken: account.access_token,
+          accessTokenExpires: Date.now() + account.expires_in * 1000,
+          refreshToken: account.refresh_token,
+          user,
+        };
       }
-      return token;
+
+      // Return previous token if the access token has not expired yet
+      if (Date.now() < token.accessTokenExpires) {
+        console.log("Token still valid", { expiresAt: token.accessTokenExpires, now: Date.now() });
+        return token;
+      }
+
+      // Access token has expired, try to update it
+      console.log("Access token expired, attempting refresh...");
+      return refreshAccessToken(token);
     },
     async session({ session, token }) {
-      // Send properties to the client
-      console.log("Setting session access token from token", !!token.accessToken);
-      
-      // Include token properties in the session
+      // Send properties to the client, like an access_token and user id from the token object.
+      session.user = token.user;
       session.accessToken = token.accessToken;
-      session.refreshToken = token.refreshToken;
-      session.expiresAt = token.expiresAt;
-      
+      session.error = token.error;
+      console.log("Session callback", { hasAccessToken: !!session.accessToken, error: session.error });
       return session;
     },
   },
   debug: true, // Enable debug messages
-}); 
+});
+
+async function refreshAccessToken(token) {
+  try {
+    const url = "https://oauth2.googleapis.com/token";
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        grant_type: "refresh_token",
+        refresh_token: token.refreshToken,
+      }),
+    });
+
+    const refreshedTokens = await response.json();
+
+    if (!response.ok) {
+      console.error("Error refreshing token:", refreshedTokens);
+      throw refreshedTokens;
+    }
+
+    console.log("Tokens refreshed successfully");
+
+    return {
+      ...token, // Keep the existing token properties
+      accessToken: refreshedTokens.access_token,
+      accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
+      // Fallback refreshToken check: Google might not always return a new refresh token
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, 
+    };
+  } catch (error) {
+    console.error("Error refreshing access token", error);
+    // Indicate error and potentially invalidate session
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    };
+  }
+} 
