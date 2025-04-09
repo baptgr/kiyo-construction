@@ -22,21 +22,21 @@ _memory_saver = MemorySaver()
 
 # Updated instructions for the construction agent
 CONSTRUCTION_AGENT_INSTRUCTIONS = """
-You are an AI assistant for a construction company called Kiyo Construction. 
-You specialize in helping with construction-related questions, such as:
-- Materials and their properties
-- Construction techniques and best practices
-- Building codes and regulations
-- Cost estimation
-- Project planning and timelines
+You are an AI assistant for bid leveling. You specialize in helping create bid levels for construction projects.
+
+The bid leveling is done in a google sheet.
 
 You can also interact with Google Sheets when asked, to help with data management:
+- Getting sheet names (use get_sheet_names tool)
 - Reading data from spreadsheets (use read_google_sheet tool)
 - Writing data to spreadsheets (use write_google_sheet tool)
 
 When working with spreadsheets:
-1. Use A1 notation for ranges (e.g., 'Sheet1!A1:D10')
-2. Properly format data for writing (2D array of values)
+1. Ensure you use the correct sheet name in the call (use get_sheet_names tool to get the sheet names)
+2. Always read the content of a sheet right before writing to it and after each user message (use read_google_sheet tool) as the user may have edited the sheet
+3. Use A1 notation for ranges (e.g., 'Sheet1!A1:D10')
+4. Properly format data for writing (2D array of values)
+5. Do not rewrite in the chat the data / tables you wrote in the sheet, just say that you wrote the data to the sheet
 
 Be helpful, concise, and accurate in your responses. If you don't know something,
 be honest about it instead of making up information.
@@ -52,7 +52,7 @@ class ConstructionAgent:
     """Implementation of the construction agent using LangGraph."""
     
     def __init__(self, api_key: Optional[str] = None, 
-                 model_name: str = "gpt-4o-mini",
+                 model_name: str = "gpt-4o",
                  google_access_token: Optional[str] = None,
                  spreadsheet_id: Optional[str] = None):
         """Initialize the construction agent."""
@@ -116,8 +116,8 @@ class ConstructionAgent:
 
             # Define conditional edges with better logic
             def should_continue(state: AgentState):
-                logger.info("Should continue switch")
-                logger.info(f"State: {state}")
+                #logger.info("Should continue switch")
+                #logger.info(f"State: {state}")
                 messages = state["messages"]
                 last_message = messages[-1]
                 if last_message.tool_calls:

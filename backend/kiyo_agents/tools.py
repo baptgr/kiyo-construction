@@ -131,4 +131,58 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
                 }
             )
 
-    return [read_google_sheet, write_google_sheet] 
+    @tool
+    def get_sheet_names(
+        tool_call_id: Annotated[str, InjectedToolCallId]
+    ) -> Command:
+        """Tool for retrieving sheet names from Google Sheets.
+        
+        Args:
+            tool_call_id: Automatically injected tool call ID
+            
+        Returns:
+            Command object with state update including the tool message
+        """
+        logger.info(f"Retrieving sheet names for spreadsheet: {spreadsheet_id}")
+
+        try:
+            # Retrieve the spreadsheet metadata
+            sheet_metadata = sheets_service.get_spreadsheet_metadata(spreadsheet_id)
+            
+            # Extract sheet names
+            sheets = sheet_metadata.get('sheets', [])
+            sheet_names = [sheet.get("properties", {}).get("title", "Sheet1") for sheet in sheets]
+            
+            # Create a ToolMessage for the response
+            tool_message = ToolMessage(
+                content=f"Sheet names: {sheet_names}",
+                tool_call_id=tool_call_id,
+                status="success"
+            )
+            
+            # Return a Command to update state with message
+            return Command(
+                update={
+                    "messages": [tool_message],
+                    "sheet_names": sheet_names  # Store sheet names in the state
+                }
+            )
+        except Exception as e:
+            error_msg = f"Error retrieving sheet names: {str(e)}"
+            logger.error(error_msg)
+            
+            # Create error tool message
+            tool_message = ToolMessage(
+                content=error_msg,
+                tool_call_id=tool_call_id,
+                status="error"
+            )
+            
+            return Command(
+                update={
+                    "messages": [tool_message]
+                }
+            )
+
+    tools = [read_google_sheet, write_google_sheet, get_sheet_names]
+    return tools 

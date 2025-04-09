@@ -4,6 +4,8 @@ import requests
 from typing import List, Dict, Any, Optional
 import logging
 
+logger = logging.getLogger(__name__)
+
 class GoogleSheetsService:
     """
     Service for interacting with Google Sheets API.
@@ -74,7 +76,6 @@ class GoogleSheetsService:
         """
         try:
             # Debug logging for request parameters
-            logger = logging.getLogger(__name__)
             logger.info(f"Attempting to write to spreadsheet ID: {spreadsheet_id}")
             logger.info(f"Range: {range_name}")
             logger.info(f"Value input option: {value_input_option}")
@@ -149,7 +150,6 @@ class GoogleSheetsService:
         """
         try:
             # Debug logging for request parameters
-            logger = logging.getLogger(__name__)
             logger.info(f"Attempting to append to spreadsheet ID: {spreadsheet_id}")
             logger.info(f"Range: {range_name}")
             logger.info(f"Value input option: {value_input_option}")
@@ -202,4 +202,16 @@ class GoogleSheetsService:
             return result
         except Exception as e:
             logger.error(f"Error appending to Google Sheet: {str(e)}", exc_info=True)
-            raise Exception(f"Error appending to Google Sheet: {str(e)}") 
+            raise Exception(f"Error appending to Google Sheet: {str(e)}")
+    
+    def get_spreadsheet_metadata(self, spreadsheet_id: str) -> Dict[str, Any]:
+        """Retrieve metadata for a given spreadsheet."""
+        try:
+            # Use the Google Sheets API to get the spreadsheet metadata
+            url = f"{self.base_url}/{spreadsheet_id}"
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Failed to retrieve spreadsheet metadata: {e}")
+            raise 
