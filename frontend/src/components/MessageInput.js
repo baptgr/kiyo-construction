@@ -6,19 +6,21 @@ import { useState, useRef } from 'react';
 
 export default function MessageInput({ onSendMessage, isTyping }) {
   const [inputMessage, setInputMessage] = useState('');
-  const [attachedFile, setAttachedFile] = useState(null);
+  const [attachedFiles, setAttachedFiles] = useState([]);
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type === 'application/pdf') {
-      setAttachedFile(file);
-    } else {
-      // Optional: Add some user feedback if the file is not a PDF
-      console.warn("Please select a PDF file.");
-      setAttachedFile(null); // Clear if invalid file type
+    const files = Array.from(e.target.files);
+    const pdfFiles = files.filter(file => file.type === 'application/pdf');
+
+    if (pdfFiles.length !== files.length) {
+        console.warn("Some selected files were not PDFs and were ignored.");
+        // Optionally show a user-facing message here
     }
-    // Reset file input value to allow selecting the same file again
+
+    setAttachedFiles(prevFiles => [...prevFiles, ...pdfFiles]);
+
+    // Reset file input value to allow selecting the same file again if needed
     if (fileInputRef.current) {
         fileInputRef.current.value = '';
     }
@@ -28,37 +30,38 @@ export default function MessageInput({ onSendMessage, isTyping }) {
     fileInputRef.current?.click();
   };
 
-  const removeAttachment = () => {
-    setAttachedFile(null);
+  const removeAttachment = (indexToRemove) => {
+    setAttachedFiles(prevFiles => prevFiles.filter((_, index) => index !== indexToRemove));
   };
-
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const messageToSend = inputMessage.trim();
     
-    if (messageToSend || attachedFile) {
-      if (attachedFile) {
+    if (messageToSend || attachedFiles.length > 0) {
+      if (attachedFiles.length > 0) {
         const formData = new FormData();
         formData.append('message', messageToSend);
-        formData.append('pdf_file', attachedFile);
-        onSendMessage(formData); // Parent needs to handle FormData
+        attachedFiles.forEach((file) => {
+          formData.append('pdf_files', file);
+        });
+        onSendMessage(formData);
       } else {
-        onSendMessage(messageToSend); // Send as plain text
+        onSendMessage(messageToSend);
       }
       setInputMessage('');
-      setAttachedFile(null);
+      setAttachedFiles([]);
     }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !isTyping) { // Only submit if not typing
+    if (e.key === 'Enter' && !e.shiftKey && !isTyping) {
       e.preventDefault();
       handleSubmit(e);
     }
   };
 
-  const canSubmit = (inputMessage.trim() || attachedFile) && !isTyping;
+  const canSubmit = (inputMessage.trim() || attachedFiles.length > 0) && !isTyping;
 
   return (
     <Box sx={{ width: '100%' }}> 
@@ -83,6 +86,7 @@ export default function MessageInput({ onSendMessage, isTyping }) {
           ref={fileInputRef}
           onChange={handleFileSelect}
           style={{ display: 'none' }}
+          multiple
         />
         {/* Attachment Button */}
         <IconButton 
@@ -159,21 +163,24 @@ export default function MessageInput({ onSendMessage, isTyping }) {
           <SendIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </Box>
-      {/* Attached File Indicator */}
-      {attachedFile && (
-        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-start' }}>
+      {/* Attached Files Indicator */}
+      {attachedFiles.length > 0 && (
+        <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {attachedFiles.map((file, index) => (
             <Chip
-                icon={<AttachFileIcon />}
-                label={attachedFile.name}
-                size="small"
-                onDelete={removeAttachment}
-                deleteIcon={<CloseIcon />}
-                sx={{ 
-                    maxWidth: 'calc(100% - 16px)', // Ensure chip doesn't overflow container padding
-                     backgroundColor: 'var(--color-surface-secondary)', 
-                     color: 'var(--color-text-secondary)' 
-                 }}
+              key={index}
+              icon={<AttachFileIcon />}
+              label={file.name}
+              size="small"
+              onDelete={() => removeAttachment(index)}
+              deleteIcon={<CloseIcon />}
+              sx={{ 
+                  maxWidth: 'calc(100% - 16px)',
+                   backgroundColor: 'var(--color-surface-secondary)', 
+                   color: 'var(--color-text-secondary)' 
+               }}
             />
+          ))}
         </Box>
       )}
     </Box>
