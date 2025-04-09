@@ -44,12 +44,32 @@ export default function ChatSection() {
   }, []);
 
   // Send a message to the API with streaming
-  const sendMessage = async (messageText) => {
-    if (!messageText.trim()) return;
+  const sendMessage = async (messageInput) => {
+    // Determine the text part of the message for display and API payload (if text only)
+    let userMessageText = '';
+    let apiPayload = null;
+
+    if (messageInput instanceof FormData) {
+      userMessageText = messageInput.get('message') || ''; // Get text part from FormData
+      apiPayload = messageInput; // Pass FormData directly
+    } else if (typeof messageInput === 'string') {
+      userMessageText = messageInput.trim();
+      apiPayload = userMessageText; // Pass string directly
+    } else {
+      console.error("Invalid message input type:", typeof messageInput);
+      return; // Don't proceed if input type is wrong
+    }
     
-    // Add user message to chat
+    // Don't send if there's no text AND no file (which MessageInput should prevent, but double-check)
+    if (!userMessageText && !(messageInput instanceof FormData && messageInput.has('pdf_file'))) {
+        return;
+    }
+    
+    // Add user message to chat visually
     const userMessage = {
-      text: messageText,
+      text: userMessageText, // Display the text part
+      // Optionally, indicate if a file was attached, e.g.:
+      // attachment: messageInput instanceof FormData ? messageInput.get('pdf_file')?.name : null,
       sender: 'user',
       timestamp: new Date().toISOString()
     };
@@ -68,7 +88,8 @@ export default function ChatSection() {
       
       setMessages(prev => [...prev, assistantMessage]);
       
-      const response = await getStreamResponse(messageText, conversationId);
+      // Pass the appropriate payload (string or FormData) to the API hook
+      const response = await getStreamResponse(apiPayload, conversationId);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

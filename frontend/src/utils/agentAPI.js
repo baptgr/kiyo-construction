@@ -6,11 +6,11 @@ import { useConversation } from '@/context/ConversationContext';
 
 /**
  * Core function to send requests to the agent API
- * @param {string} message - The message to send to the agent
+ * @param {string | FormData} payload - The message string or FormData to send to the agent
  * @param {Object} options - Additional options
  * @returns {Promise<Response>} - The response object
  */
-async function sendAgentRequest(message, options = {}) {
+async function sendAgentRequest(payload, options = {}) {
   const {
     googleAccessToken = null,
     spreadsheetId = null,
@@ -20,17 +20,35 @@ async function sendAgentRequest(message, options = {}) {
 
   const endpoint = isStreaming ? '/api/agent/chat/stream/' : '/api/agent/chat/';
   
-  return fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      message,
+  let headers = {};
+  let body;
+
+  if (payload instanceof FormData) {
+    // Append context data to FormData
+    if (googleAccessToken) payload.append('google_access_token', googleAccessToken);
+    if (spreadsheetId) payload.append('spreadsheet_id', spreadsheetId);
+    if (conversationId) payload.append('conversation_id', conversationId);
+    
+    // Don't set Content-Type, browser will set it with boundary for FormData
+    body = payload;
+  } else if (typeof payload === 'string') {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify({
+      message: payload,
       google_access_token: googleAccessToken,
       spreadsheet_id: spreadsheetId,
       conversation_id: conversationId
-    }),
+    });
+  } else {
+      console.error("sendAgentRequest: Invalid payload type", typeof payload);
+      // You might want to return a rejected Promise or throw an error here
+      return Promise.reject(new Error("Invalid payload type"));
+  }
+
+  return fetch(endpoint, {
+    method: 'POST',
+    headers: headers,
+    body: body,
   });
 }
 
@@ -65,14 +83,14 @@ export async function sendMessageToAgent(message, googleAccessToken = null, spre
 
 /**
  * Get a streaming response from the agent
- * @param {string} message - The message to send to the agent
+ * @param {string | FormData} messagePayload - The message string or FormData to send
  * @param {string} googleAccessToken - Optional Google access token for Sheets access
  * @param {string} spreadsheetId - Optional spreadsheet ID to use for the task
  * @param {string} conversationId - Optional conversation ID to use for the task
  * @returns {Promise<Response>} - The streaming response object
  */
-export async function getAgentStreamResponse(message, googleAccessToken = null, spreadsheetId = null, conversationId = null) {
-  return sendAgentRequest(message, {
+export async function getAgentStreamResponse(messagePayload, googleAccessToken = null, spreadsheetId = null, conversationId = null) {
+  return sendAgentRequest(messagePayload, {
     googleAccessToken,
     spreadsheetId,
     conversationId,
