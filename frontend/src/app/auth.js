@@ -19,11 +19,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, account, user }) {
       // Initial sign in
       if (account && user) {
-        console.log("Initial sign in - Account info received:", {
-          accessToken: !!account.access_token,
-          refreshToken: !!account.refresh_token,
-          expiresAt: account.expires_at
-        });
+        // DEBUG: Log details when a user initially signs in and account info is received.
+        // console.log("Initial sign in - Account info received:", {
+        //   accessToken: !!account.access_token,
+        //   refreshToken: !!account.refresh_token,
+        //   expiresAt: account.expires_at
+        // });
         return {
           accessToken: account.access_token,
           accessTokenExpires: Date.now() + account.expires_in * 1000,
@@ -34,12 +35,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       // Return previous token if the access token has not expired yet
       if (Date.now() < token.accessTokenExpires) {
-        console.log("Token still valid", { expiresAt: token.accessTokenExpires, now: Date.now() });
+        // DEBUG: Log that the current access token is still valid.
+        // console.log("Token still valid", { expiresAt: token.accessTokenExpires, now: Date.now() });
         return token;
       }
 
       // Access token has expired, try to update it
-      console.log("Access token expired, attempting refresh...");
+      // DEBUG: Log that the access token has expired and a refresh attempt is being made.
+      // console.log("Access token expired, attempting refresh...");
       return refreshAccessToken(token);
     },
     async session({ session, token }) {
@@ -47,7 +50,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user = token.user;
       session.accessToken = token.accessToken;
       session.error = token.error;
-      console.log("Session callback", { hasAccessToken: !!session.accessToken, error: session.error });
+      // DEBUG: Log session details including token presence and any errors.
+      // console.log("Session callback", { hasAccessToken: !!session.accessToken, error: session.error });
       return session;
     },
   },
@@ -73,11 +77,13 @@ async function refreshAccessToken(token) {
     const refreshedTokens = await response.json();
 
     if (!response.ok) {
-      console.error("Error refreshing token:", refreshedTokens);
+      // DEBUG: Log error details if the token refresh request failed.
+      // console.error("Error refreshing token:", refreshedTokens);
       throw refreshedTokens;
     }
 
-    console.log("Tokens refreshed successfully");
+    // DEBUG: Log confirmation of successful token refresh.
+    // console.log("Tokens refreshed successfully");
 
     return {
       ...token, // Keep the existing token properties
@@ -87,7 +93,8 @@ async function refreshAccessToken(token) {
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken, 
     };
   } catch (error) {
-    console.error("Error refreshing access token", error);
+    // DEBUG: Log any errors caught during the access token refresh process.
+    // console.error("Error refreshing access token", error);
     // Indicate error and potentially invalidate session
     return {
       ...token,
