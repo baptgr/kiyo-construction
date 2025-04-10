@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import ToolNode
 from langgraph.graph.message import add_messages
-from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
+from langchain_core.messages import AIMessage, HumanMessage, BaseMessage, SystemMessage
 from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -22,11 +22,23 @@ _memory_saver = MemorySaver()
 
 # Updated instructions for the construction agent
 CONSTRUCTION_AGENT_INSTRUCTIONS = """
-You are an AI assistant for bid leveling. You specialize in helping create bid levels for construction projects.
+You are a helpful AI assistant specialized in construction bid leveling. 
+You specialize in helping your user create bid levels in a google sheet.
 
-The bid leveling is done in a google sheet.
+The objective of bid leveling is to compare bids from different contractors in an apples to apples comparison.
 
-You can also interact with Google Sheets when asked, to help with data management:
+Objectives 
+1. Perform comprehensive bid leveling analysis based on bids data that the user will send. 
+2. Maintain existing spreadsheet structure and formulas 
+3. Provide accurate estimates for excluded items 
+
+Key Requirements 
+1. Create a line per item and for each excluded bid item 
+2. Develop estimates using, Comparative bid data, Industry pricing standards 
+3. Do NOT overwrite existing formulas
+
+Google Sheets Interaction
+You can also interact with Google Sheets via the following tools:
 - Getting sheet names (use get_sheet_names tool)
 - Reading data from spreadsheets (use read_google_sheet tool)
 - Writing data to spreadsheets (use write_google_sheet tool)
@@ -34,9 +46,10 @@ You can also interact with Google Sheets when asked, to help with data managemen
 When working with spreadsheets:
 1. Ensure you use the correct sheet name in the call (use get_sheet_names tool to get the sheet names)
 2. Always read the content of a sheet right before writing to it and after each user message (use read_google_sheet tool) as the user may have edited the sheet
-3. Use A1 notation for ranges (e.g., 'Sheet1!A1:D10')
-4. Properly format data for writing (2D array of values)
-5. Do not rewrite in the chat the data / tables you wrote in the sheet, just say that you wrote the data to the sheet
+3. Follow the spreadsheet structure and formulas as it is. 
+4. Use A1 notation for ranges (e.g., 'Sheet1!A1:D10')
+5. Properly format data for writing (2D array of values)
+6. Do not rewrite in the chat the data / tables you wrote in the sheet, just say that you wrote the data to the sheet
 
 Be helpful, concise, and accurate in your responses. If you don't know something,
 be honest about it instead of making up information.
@@ -64,8 +77,8 @@ class ConstructionAgent:
         self.memory = _memory_saver
         self.graph = self._create_graph()
 
-        logger.info(f"Google access token: {self.google_access_token}")
-        logger.info(f"Spreadsheet ID: {self.spreadsheet_id}")
+        #logger.info(f"Google access token: {self.google_access_token}")
+        #logger.info(f"Spreadsheet ID: {self.spreadsheet_id}")
 
     def _create_tools(self) -> List[Dict[str, Any]]:
         """Create the tools for the agent."""
@@ -99,8 +112,9 @@ class ConstructionAgent:
         # Create the agent node
         def agent_node(state: AgentState) -> Dict:
             """Process messages and generate responses."""
-            messages = state["messages"]
-            response = llm_with_tools.invoke(messages)
+            # Prepend the system instructions to the current messages
+            messages_with_instructions = [SystemMessage(content=CONSTRUCTION_AGENT_INSTRUCTIONS)] + state["messages"]
+            response = llm_with_tools.invoke(messages_with_instructions)
             return {"messages": [response]}
         
         # Add nodes to the graph
@@ -145,7 +159,7 @@ class ConstructionAgent:
         spreadsheet_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Process a message and return a complete response."""
-        logger.info(f"Processing message for conversation {conversation_id}")
+        #logger.info(f"Processing message for conversation {conversation_id}")
         
         # Get existing messages from memory if conversation_id exists
         existing_messages = []
@@ -155,7 +169,7 @@ class ConstructionAgent:
                 existing_state = self.memory.get_state(conversation_id)
                 if existing_state and "messages" in existing_state:
                     existing_messages = existing_state["messages"]
-                    logger.info(f"Found existing messages for conversation {conversation_id}")
+                    #logger.info(f"Found existing messages for conversation {conversation_id}")
             except Exception as e:
                 logger.warning(f"Could not retrieve messages for conversation {conversation_id}: {e}")
         
@@ -240,4 +254,4 @@ class ConstructionAgent:
                     #logger.info(f"Yielding tool call chunk: {json.dumps(chunk['tool_calls'])}")
                     yield chunk
                 
-        logger.info("Message stream processing completed") 
+        #logger.info("Message stream processing completed") 

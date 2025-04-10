@@ -31,7 +31,8 @@ class GoogleSheetsService:
     def read_sheet_data(
         self, 
         spreadsheet_id: str, 
-        range_name: str
+        range_name: str,
+        value_render_option: str = "FORMATTED_VALUE"
     ) -> List[List[Any]]:
         """
         Read data from a Google Sheet.
@@ -39,13 +40,20 @@ class GoogleSheetsService:
         Args:
             spreadsheet_id: The ID of the spreadsheet
             range_name: The A1 notation of the range to read (e.g., 'Sheet1!A1:D10')
+            value_render_option: How values should be rendered in the output
+                "FORMATTED_VALUE": Values will be calculated and formatted according to the cell's formatting
+                "UNFORMATTED_VALUE": Values will be calculated but not formatted
+                "FORMULA": Values will be the formulas themselves
             
         Returns:
             List of rows, where each row is a list of values
         """
         try:
             url = f"{self.base_url}/{spreadsheet_id}/values/{range_name}"
-            response = requests.get(url, headers=self.headers)
+            params = {
+                "valueRenderOption": value_render_option
+            }
+            response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
             
             data = response.json()

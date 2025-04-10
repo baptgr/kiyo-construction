@@ -12,18 +12,23 @@ from .google_sheets_service import GoogleSheetsService
 def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_id: str) -> List[Dict[str, Any]]:
     """Create Google Sheets related tools with proper error handling and state updates."""
 
-    logger.info(f"Creating Google Sheets tools for spreadsheet: {spreadsheet_id}")
+    #logger.info(f"Creating Google Sheets tools for spreadsheet: {spreadsheet_id}")
     
     @tool
     def read_google_sheet(
         range_name: str,
-        tool_call_id: Annotated[str, InjectedToolCallId]
+        tool_call_id: Annotated[str, InjectedToolCallId],
+        value_render_option: str = "FORMATTED_VALUE"
     ) -> Command:
         """Tool for reading from Google Sheets.
         
         Args:
             range_name: The A1 notation of the range to read (e.g., 'Sheet1!A1:D10')
             tool_call_id: Automatically injected tool call ID
+            value_render_option: How values should be rendered in the output
+                "FORMATTED_VALUE": Values will be calculated and formatted according to the cell's formatting
+                "UNFORMATTED_VALUE": Values will be calculated but not formatted
+                "FORMULA": Values will be the formulas themselves
             
         Returns:
             Command object with state update including the tool message
@@ -33,7 +38,8 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
         try:
             data = sheets_service.read_sheet_data(
                 spreadsheet_id, 
-                range_name
+                range_name,
+                value_render_option=value_render_option
             )
             # Format data for better readability
             formatted_data = str(data) if isinstance(data, (str, int, float)) else str(data)
@@ -86,6 +92,9 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
         Returns:
             Command object with state update including the tool message
         """
+        
+        logger.info(f"Writing to Google Sheets: {spreadsheet_id} - {range_name}")
+        
         try:
             if is_append:
                 result = sheets_service.append_sheet_data(
@@ -143,6 +152,7 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
         Returns:
             Command object with state update including the tool message
         """
+        
         logger.info(f"Retrieving sheet names for spreadsheet: {spreadsheet_id}")
 
         try:

@@ -95,7 +95,7 @@ def _generate_sse_stream(agent_input: str, conv_id: str, g_token: Optional[str],
             spreadsheet_id=ss_id
         )
         
-        logger.info(f"Starting message processing stream for {conv_id}")
+        #logger.info(f"Starting message processing stream for {conv_id}")
         
         for chunk in agent.process_message_stream(
             agent_input, 
@@ -147,7 +147,7 @@ def chat_stream(request):
         # 2. Process potentially multiple PDFs
         processed_pdfs = []
         if pdf_files:
-            logger.info(f"Processing {len(pdf_files)} uploaded PDF file(s)...")
+            #logger.info(f"Processing {len(pdf_files)} uploaded PDF file(s)...")
             for pdf_file in pdf_files:
                 try:
                     pdf_text_content = process_pdf_upload(pdf_file)
@@ -166,7 +166,7 @@ def chat_stream(request):
              return JsonResponse({'error': str(e)}, status=400)
 
         # 4. Generate and Return SSE Stream
-        logger.info("Creating SSE response")
+        #logger.info("Creating SSE response")
         response = StreamingHttpResponse(
             _generate_sse_stream(agent_input_message, conversation_id, google_access_token, spreadsheet_id),
             content_type='text/event-stream'
