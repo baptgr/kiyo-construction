@@ -2,6 +2,7 @@ import os
 import tempfile
 import logging
 from typing import IO
+from django.core.files import File
 
 # Langchain PDF Loader
 from langchain_community.document_loaders import PyPDFLoader
@@ -30,7 +31,7 @@ def process_pdf_upload(pdf_file: IO) -> str:
         #logger.info(f"Extracted {len(pdf_text_content)} characters from PDF.")
 
     except Exception as pdf_err:
-        #logger.error(f"Error processing PDF {pdf_file.name}: {pdf_err}", exc_info=True)
+        logger.error(f"Error processing PDF {pdf_file.name}: {pdf_err}", exc_info=True)
         pdf_text_content = "[Error processing attached PDF]"
     finally:
         # Ensure temporary file is deleted
@@ -43,3 +44,8 @@ def process_pdf_upload(pdf_file: IO) -> str:
                 pass
     
     return pdf_text_content
+
+def process_pdf_file(pdf_path: str) -> str:
+    with open(pdf_path, "rb") as f:
+        django_file = File(f)
+        return process_pdf_upload(django_file)

@@ -14,6 +14,7 @@ from typing import Tuple, Optional, Dict, Any, IO, List
 
 from kiyo_agents.construction_agent import ConstructionAgent
 from kiyo_agents.pdf_processor import process_pdf_upload
+from kiyo_agents.message_builder import build_agent_input_message
 
 # Configure more detailed logging
 logger = logging.getLogger(__name__)

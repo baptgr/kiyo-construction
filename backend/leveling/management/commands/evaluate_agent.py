@@ -23,7 +23,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--dataset-name',
             type=str,
-            default='sample-dataset',
+            default='construction-agent-evaluation',
             help='Name of the dataset to create/use'
         )
 
@@ -57,6 +57,5 @@ class Command(BaseCommand):
             agent=agent,
             dataset_name=options['dataset_name']
         )
-        
-        # Process and display results
-        self.stdout.write(self.style.SUCCESS("Successfully ran the evaluation pipeline"))
+
+        self.stdout.write(self.style.SUCCESS(f"Successfully ran the evaluation pipeline"))

@@ -10,5 +10,5 @@ def evaluator_more_than_2_words(inputs: Dict[str, Any], outputs: Dict[str, Any])
     Returns:
         Dictionary containing the score
     """
-    words = outputs["response"].split()
+    words = outputs["response"]["text"].split()
     return {"score": 1 if len(words) > 2 else 0}

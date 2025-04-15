@@ -1,103 +1,73 @@
-from typing import Dict, Any, List, Callable
+import logging
+
+from typing import Dict, Any, Callable
 from langsmith import Client
 from kiyo_agents.construction_agent import ConstructionAgent
+from kiyo_agents.message_builder import build_agent_input_message
+from kiyo_agents.pdf_processor import process_pdf_file
+import os
 
 from .evaluators import evaluator_more_than_2_words
+from .file_processing import create_sheet_from_template
 
-def build_dataset(client: Client, dataset_name: str) -> None:
-    """Create or get a dataset for evaluation.
-    
-    Args:
-        client: LangSmith client instance
-        dataset_name: Name of the dataset to create/use
-    """
-    try:
-        # Try to get existing dataset
-        dataset = client.read_dataset(dataset_name=dataset_name)
-        print(f"Using existing dataset: {dataset_name}")
-    except:
-        # Create new dataset if it doesn't exist
-        dataset = client.create_dataset(
-            dataset_name=dataset_name,
-            description="Dataset for evaluating the construction agent's responses"
-        )
-        print(f"Created new dataset: {dataset_name}")
+logger = logging.getLogger(__name__)
 
-        # Create examples for the dataset
-        examples = [
-            {
-                "inputs": {"message": "Hello"},
-            },
-            {
-                "inputs": {"message": "How are you?"},
-            }
-        ]
-
-        # Add examples to the dataset
-        client.create_examples(dataset_id=dataset.id, examples=examples)
-        print("Added examples to the dataset")
 
 def create_target_function(agent: ConstructionAgent) -> Callable:
-    """Create a target function for evaluation.
-    
-    Args:
-        agent: ConstructionAgent instance to evaluate
-    
-    Returns:
-        A function that takes inputs and returns outputs
-    """
+    """Create a target function that processes file inputs and returns agent responses."""
     def target_function(inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """Process a message and return the response.
+        # 1. Create Google Sheet from template
+        template_path = inputs["template_path"]
+        sheet_id = create_sheet_from_template(template_path)
         
-        Args:
-            inputs: Dictionary containing the input message
-            
-        Returns:
-            Dictionary containing the response
-        """
-        response = ""
-        for chunk in agent.process_message_stream(inputs["message"], conversation_id="evaluation"):
-            if chunk.get('type') == 'message':
-                response = chunk['text']
-        return {"response": response}
+        # 2. Process PDFs
+        pdf_contents = []
+        for pdf_path in inputs["pdf_paths"]:
+            content = process_pdf_file(pdf_path)
+            # Create a dictionary with filename and content
+            pdf_contents.append({
+                "filename": os.path.basename(pdf_path),
+                "content": content
+            })
+        
+        # 3. Build combined message
+        message = build_agent_input_message(
+            message=inputs["message"],
+            processed_pdfs=pdf_contents,
+            spreadsheet_id=sheet_id
+        )
+        
+        # 4. Process with agent
+        response = agent.process_message(message, conversation_id="simulation")
+        
+        return {
+            "sheet_id": sheet_id,
+            "response": response
+        }
     
     return target_function
 
 def run_evaluation_pipeline(
     client: Client,
     agent: ConstructionAgent,
-    dataset_name: str,
-    experiment_prefix: str = "agent-evaluation",
-    max_concurrency: int = 1,
-    num_repetitions: int = 1
-) -> Any:
-    """Run the complete evaluation pipeline.
+    dataset_name: str = "sample-dataset"
+) -> Dict[str, Any]:
+    """Run the full evaluation pipeline."""
+    # Get the dataset
+    try:
+        dataset = client.read_dataset(dataset_name=dataset_name)
+    except Exception as e:
+        raise ValueError(f"Dataset {dataset_name} not found. Please create it first using the create_evaluation_dataset command.") from e
     
-    Args:
-        client: LangSmith client instance
-        agent: ConstructionAgent instance to evaluate
-        dataset_name: Name of the dataset to use
-        experiment_prefix: Prefix for the experiment name
-        max_concurrency: Maximum number of concurrent evaluations
-        num_repetitions: Number of times to repeat each evaluation
-        
-    Returns:
-        Experiment results
-    """
-    # Build or get dataset
-    build_dataset(client, dataset_name)
-    
-    # Create target function and evaluator
+    # Create target function
     target_function = create_target_function(agent)
     
     # Run evaluation
     experiment_results = client.evaluate(
         target_function,
-        data=dataset_name,
+        data=dataset,
         evaluators=[evaluator_more_than_2_words],
-        experiment_prefix=experiment_prefix,
-        max_concurrency=max_concurrency,
-        num_repetitions=num_repetitions
+        experiment_prefix="agent-evaluation"
     )
     
     return experiment_results 
