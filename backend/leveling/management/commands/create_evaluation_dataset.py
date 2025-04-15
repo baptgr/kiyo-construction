@@ -8,10 +8,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--dataset-name',
+            '--template-name',
             type=str,
-            default='sample-dataset',
-            help='Name of the dataset to create'
+            default='template-1',
+            help='Name of the template to create'
         )
 
     def handle(self, *args, **options):
@@ -21,7 +21,7 @@ class Command(BaseCommand):
         # Create the dataset
         dataset = create_evaluation_dataset(
             client=client,
-            dataset_name=options['dataset_name']
+            template_name=options['template_name']
         )
         
         self.stdout.write(

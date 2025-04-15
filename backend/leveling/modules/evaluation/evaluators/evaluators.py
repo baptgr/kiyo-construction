@@ -12,3 +12,9 @@ def evaluator_more_than_2_words(inputs: Dict[str, Any], outputs: Dict[str, Any])
     """
     words = outputs["response"]["text"].split()
     return {"score": 1 if len(words) > 2 else 0}
+
+EVALUATORS_FUNCTIONS = {
+    "template-1": [
+        evaluator_more_than_2_words,
+    ],
+}

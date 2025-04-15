@@ -10,13 +10,14 @@ from kiyo_agents.message_builder import build_agent_input_message
 from kiyo_agents.pdf_processor import process_pdf_file
 import os
 
-from .evaluators import evaluator_more_than_2_words
+from .evaluators.evaluators import EVALUATORS_FUNCTIONS
+from .data_extraction import EXTRACTION_FUNCTIONS
 from .file_processing import create_sheet_from_template
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-def create_target_function(google_access_token: str, run_id: str) -> Callable:
+def create_target_function(google_access_token: str, run_id: str, dataset_name: str) -> Callable:
     """Create a target function that processes file inputs and returns agent responses."""
 
     def target_function(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -52,17 +53,21 @@ def create_target_function(google_access_token: str, run_id: str) -> Callable:
         # create unique conversation id
         conversation_id = f"conversation_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}"
         response = agent.process_message(message, conversation_id=conversation_id)
+
+        # 6. Extract data from Google Sheet
+        data = EXTRACTION_FUNCTIONS[dataset_name](sheet_id)
         
         return {
             "sheet_id": sheet_id,
-            "response": response
+            "response": response,
+            "data": data
         }
     
     return target_function
 
 def run_evaluation_pipeline(
     client: Client,
-    dataset_name: str = "sample-dataset",
+    dataset_name: str = "template-1",
     google_access_token: str = None,
     num_repetitions: int = 2
 ) -> Dict[str, Any]:
@@ -77,13 +82,14 @@ def run_evaluation_pipeline(
         raise ValueError(f"Dataset {dataset_name} not found. Please create it first using the create_evaluation_dataset command.") from e
     
     # Create target function
-    target_function = create_target_function(google_access_token, run_id)
+    target_function = create_target_function(
+        google_access_token, run_id, dataset_name)
     
     # Run evaluation
     experiment_results = client.evaluate(
         target_function,
         data=dataset,
-        evaluators=[evaluator_more_than_2_words],
+        evaluators=EVALUATORS_FUNCTIONS[dataset_name],
         experiment_prefix="agent-evaluation", 
         num_repetitions=num_repetitions
     )

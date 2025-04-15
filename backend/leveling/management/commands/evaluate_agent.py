@@ -18,7 +18,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--dataset-name',
             type=str,
-            default='sample-dataset',
+            default='template-1',
             help='Name of the dataset to create/use'
         )
 
@@ -39,5 +39,6 @@ class Command(BaseCommand):
         experiment_results = run_evaluation_pipeline(
             client=client,
             dataset_name=options['dataset_name'],
-            google_access_token=google_access_token
+            google_access_token=google_access_token, 
+
         )
