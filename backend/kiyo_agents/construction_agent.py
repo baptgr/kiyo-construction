@@ -65,7 +65,7 @@ class ConstructionAgent:
     """Implementation of the construction agent using LangGraph."""
     
     def __init__(self, api_key: Optional[str] = None, 
-                 model_name: str = "gpt-4o",
+                 model_name: str = "gpt-4.5-preview-2025-02-27",
                  google_access_token: Optional[str] = None,
                  spreadsheet_id: Optional[str] = None):
         """Initialize the construction agent."""
@@ -98,7 +98,7 @@ class ConstructionAgent:
         # Create the LLM
         llm = ChatOpenAI(
             model=self.model_name,
-            temperature=0,
+            #temperature=0,
             openai_api_key=self.api_key,
             streaming=True
         )
