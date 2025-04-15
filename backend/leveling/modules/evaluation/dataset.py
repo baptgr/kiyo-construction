@@ -20,7 +20,7 @@ def create_evaluation_dataset(
         # Try to read existing dataset
         dataset = client.read_dataset(dataset_name=dataset_name)
         print(f"Dataset {dataset_name} already exists")
-        return dataset
+
     except Exception:
         # Create new dataset if it doesn't exist
         dataset = client.create_dataset(
@@ -29,26 +29,26 @@ def create_evaluation_dataset(
         )
         print(f"Created new dataset: {dataset_name}")
         
-        # Add examples with file paths
-        examples = [
-            {
-                "inputs": {
-                    "message": "Hello, how are you?",
-                    "template_path": os.path.join(settings.BASE_DIR, "data/templates/sample_template.xlsx"),
-                    "pdf_paths": [
-                        os.path.join(settings.BASE_DIR, "data/pdfs/electrical_bid_3.pdf"),
-                        os.path.join(settings.BASE_DIR, "data/pdfs/electrical_bid_4.pdf"),
-                        os.path.join(settings.BASE_DIR, "data/pdfs/electrical_bid_5.pdf"),
-                    ]
-                },
-            }
-        ]
+    # Add examples with file paths
+    examples = [
+        {
+            "inputs": {
+                "message": "Hello, how are you?",
+                "template_path": os.path.join(settings.BASE_DIR, "data/templates/IC-Bid-Comparison-10670.xlsx"),
+                "pdf_paths": [
+                    os.path.join(settings.BASE_DIR, "data/pdfs/electrical_bid_3.pdf"),
+                    os.path.join(settings.BASE_DIR, "data/pdfs/electrical_bid_4.pdf"),
+                    os.path.join(settings.BASE_DIR, "data/pdfs/electrical_bid_5.pdf"),
+                ]
+            },
+        }
+    ]
+    
+    # Add all examples at once
+    client.create_examples(
+        dataset_id=dataset.id,
+        examples=examples
+    )
+    print(f"Added {len(examples)} examples to dataset")
         
-        # Add all examples at once
-        client.create_examples(
-            dataset_id=dataset.id,
-            examples=examples
-        )
-        print(f"Added {len(examples)} examples to dataset")
-        
-        return dataset 
+    return dataset 
