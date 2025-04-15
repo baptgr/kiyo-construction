@@ -12,18 +12,37 @@ class Command(BaseCommand):
             default='Hello, can you help me with bid leveling?',
             help='Message to send to the agent'
         )
+        parser.add_argument(
+            '--spreadsheet-id',
+            type=str,
+            help='Google Spreadsheet ID to use'
+        )
+        parser.add_argument(
+            '--google-token',
+            type=str,
+            help='Google access token'
+        )
 
     def handle(self, *args, **options):
-        # Get OpenAI API key from environment
+        # Get OpenAI API key from arguments or environment
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
-            self.stderr.write(self.style.ERROR('OPENAI_API_KEY environment variable is not set'))
+            self.stderr.write(self.style.ERROR('OpenAI API key is required. Provide it via --openai-key or set OPENAI_API_KEY environment variable'))
             return
 
-        google_access_token = "123"
+        # Get Google credentials
+        google_access_token = options['google_token'] or os.getenv('DEV_GOOGLE_ACCESS_TOKEN')
+        spreadsheet_id = options['spreadsheet_id'] or os.getenv('DEV_SPREADSHEET_ID')
+
+        if not google_access_token or not spreadsheet_id:
+            self.stderr.write(self.style.WARNING('Warning: No Google credentials provided. The agent will not be able to access Google Sheets.'))
 
         # Initialize the agent
-        agent = ConstructionAgent(api_key=api_key, google_access_token=google_access_token)
+        agent = ConstructionAgent(
+            api_key=api_key,
+            google_access_token=google_access_token,
+            spreadsheet_id=spreadsheet_id
+        )
 
         # Get the message from arguments
         message = options['message']
