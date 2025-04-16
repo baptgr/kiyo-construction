@@ -17,18 +17,13 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
     @tool
     def read_google_sheet(
         range_name: str,
-        tool_call_id: Annotated[str, InjectedToolCallId],
-        value_render_option: str = "FORMATTED_VALUE"
+        tool_call_id: Annotated[str, InjectedToolCallId]
     ) -> Command:
         """Tool for reading from Google Sheets.
         
         Args:
             range_name: The A1 notation of the range to read (e.g., 'Sheet1!A1:D10')
             tool_call_id: Automatically injected tool call ID
-            value_render_option: How values should be rendered in the output
-                "FORMATTED_VALUE": Values will be calculated and formatted according to the cell's formatting
-                "UNFORMATTED_VALUE": Values will be calculated but not formatted
-                "FORMULA": Values will be the formulas themselves
             
         Returns:
             Command object with state update including the tool message
@@ -39,7 +34,7 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
             data = sheets_service.read_sheet_data(
                 spreadsheet_id, 
                 range_name,
-                value_render_option=value_render_option
+                value_render_option="FORMATTED_VALUE"
             )
             # Format data for better readability
             formatted_data = str(data) if isinstance(data, (str, int, float)) else str(data)
@@ -59,6 +54,61 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
             )
         except Exception as e:
             error_msg = f"Error reading from Google Sheets: {str(e)}"
+            logger.error(error_msg)
+            
+            # Create error tool message
+            tool_message = ToolMessage(
+                content=error_msg,
+                tool_call_id=tool_call_id,
+                status="error"
+            )
+            
+            return Command(
+                update={
+                    "messages": [tool_message]
+                }
+            )
+
+    @tool
+    def read_google_sheet_formulas(
+        range_name: str,
+        tool_call_id: Annotated[str, InjectedToolCallId]
+    ) -> Command:
+        """Tool for reading formulas from Google Sheets.
+        
+        Args:
+            range_name: The A1 notation of the range to read (e.g., 'Sheet1!A1:D10')
+            tool_call_id: Automatically injected tool call ID
+            
+        Returns:
+            Command object with state update including the tool message
+        """
+        logger.info(f"Reading formulas from Google Sheets: {spreadsheet_id} - {range_name}")
+
+        try:
+            data = sheets_service.read_sheet_data(
+                spreadsheet_id, 
+                range_name,
+                value_render_option="FORMULA"
+            )
+            # Format data for better readability
+            formatted_data = str(data) if isinstance(data, (str, int, float)) else str(data)
+            
+            # Create a ToolMessage for the response
+            tool_message = ToolMessage(
+                content=formatted_data,
+                tool_call_id=tool_call_id,
+                status="success"
+            )
+            
+            # Return a Command to update state with message
+            return Command(
+                update={
+                    "messages": [tool_message]
+                }
+            )
+        except Exception as e:
+            error_msg = f"Error reading formulas from Google Sheets: {str(e)}"
             logger.error(error_msg)
             
             # Create error tool message
@@ -194,5 +244,5 @@ def create_google_sheets_tools(sheets_service: GoogleSheetsService, spreadsheet_
                 }
             )
 
-    tools = [read_google_sheet, write_google_sheet, get_sheet_names]
+    tools = [read_google_sheet, read_google_sheet_formulas, write_google_sheet, get_sheet_names]
     return tools 
