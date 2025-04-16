@@ -1,4 +1,4 @@
-"""Extract the data from a Google Sheet in a format suited for evaluation."""
+"""Extract data from template-1 format."""
 
 from typing import Dict, Any, List, Optional
 import logging
@@ -258,8 +258,4 @@ def extract_template_1(spreadsheet_id: str, access_token: str, range_name: str =
                     "final_total": None
                 }
 
-    return structured_data
-
-EXTRACTION_FUNCTIONS = {
-    "template-1": extract_template_1,
-}
+    return structured_data 

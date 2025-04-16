@@ -1,0 +1,1 @@
+"""Data extraction module for different template types.""" 
