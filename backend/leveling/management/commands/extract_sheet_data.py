@@ -33,6 +33,25 @@ def safe_get_cell(data: List[List[Any]], row_idx: int, col_idx: int, default: Op
     except (IndexError, TypeError):
         return default
 
+def clean_currency_value(value: str) -> Optional[float]:
+    """Clean a currency value string and convert it to float.
+    
+    Args:
+        value: String containing a currency value
+        
+    Returns:
+        Float value or None if conversion fails
+    """
+    if not value:
+        return None
+        
+    try:
+        # Remove currency symbol, spaces, and non-breaking spaces
+        cleaned = value.replace('$', '').replace(' ', '').replace('\u202f', '').replace(',', '.')
+        return float(cleaned)
+    except (ValueError, AttributeError):
+        return None
+
 def transform_sheet_data(raw_data: List[List[Any]], formula_data: List[List[Any]]) -> Dict[str, Any]:
     """Transform raw sheet data into structured format.
     
@@ -43,11 +62,13 @@ def transform_sheet_data(raw_data: List[List[Any]], formula_data: List[List[Any]
     Returns:
         Dict containing structured sheet data
     """
-    # Extract supplier names from row 2 (looking at the header cells)
+    # Extract supplier names from row 0 (looking at the header cells)
     supplier_names = []
-    for col in range(2, len(raw_data[1]) if len(raw_data) > 1 else 0, 3):
+        
+    # Start from column 3 (where first supplier name is) and step by 3
+    for col in range(3, len(raw_data[1]) if len(raw_data) > 0 else 0, 3):
         name = safe_get_cell(raw_data, 1, col)
-        if name and name.strip() and name != "PRICE":  # Skip column headers
+        if name and name.strip() and name != "PRICE" and "[BID NAME" not in name:  # Skip column headers
             supplier_names.append(name)
     
     logger.info(f"Found suppliers: {supplier_names}")
@@ -147,17 +168,16 @@ def transform_sheet_data(raw_data: List[List[Any]], formula_data: List[List[Any]
             
         item = {
             "row_index": row_idx + 1,  # 1-based index
-            "name": safe_get_cell(raw_data, row_idx, 0),
-            "description": safe_get_cell(raw_data, row_idx, 1),
+            "name": safe_get_cell(raw_data, row_idx, 1),
+            "description": safe_get_cell(raw_data, row_idx, 2),
             "bids": [],
-            "bids_per_item": 0  # Track number of valid bids for this item
         }
         
         logger.debug(f"Processing item at row {row_idx + 1}: {item['name']}")
         
         # Process bids for each supplier
         for supplier_idx, supplier_name in enumerate(supplier_names):
-            base_col = 2 + (supplier_idx * 3)
+            base_col = 3 + (supplier_idx * 3)
             
             # Extract raw values first for logging
             raw_price = safe_get_cell(raw_data, row_idx, base_col)
@@ -168,28 +188,13 @@ def transform_sheet_data(raw_data: List[List[Any]], formula_data: List[List[Any]
             
             try:
                 # Process price
-                price = None
-                if raw_price and raw_price != '-':
-                    try:
-                        price = float(str(raw_price).replace('$', '').replace(',', ''))
-                    except (ValueError, AttributeError) as e:
-                        logger.warning(f"Could not convert price '{raw_price}' to float: {e}")
+                price = clean_currency_value(raw_price)
                 
                 # Process quantity
-                quantity = None
-                if raw_qty and raw_qty != '-':
-                    try:
-                        quantity = float(str(raw_qty))
-                    except (ValueError, AttributeError) as e:
-                        logger.warning(f"Could not convert quantity '{raw_qty}' to float: {e}")
+                quantity = clean_currency_value(raw_qty)
                 
                 # Process total
-                total = None
-                if raw_total and raw_total != '-':
-                    try:
-                        total = float(str(raw_total).replace('$', '').replace(',', ''))
-                    except (ValueError, AttributeError) as e:
-                        logger.warning(f"Could not convert total '{raw_total}' to float: {e}")
+                total = clean_currency_value(raw_total)
                 
                 bid = {
                     "supplier": supplier_name,
@@ -208,8 +213,6 @@ def transform_sheet_data(raw_data: List[List[Any]], formula_data: List[List[Any]
                 # Only append bid if it has any data
                 if any(v is not None for v in [price, quantity, total]):
                     item["bids"].append(bid)
-                    item["bids_per_item"] += 1
-                    logger.debug(f"Added bid for {supplier_name}, total bids: {item['bids_per_item']}")
                 
             except Exception as e:
                 logger.error(f"Error processing bid data for supplier {supplier_name} at row {row_idx + 1}: {str(e)}", exc_info=True)
@@ -222,25 +225,18 @@ def transform_sheet_data(raw_data: List[List[Any]], formula_data: List[List[Any]
 
     # Process totals for each supplier
     if len(raw_data) >= 31:  # Make sure we have enough rows
-        def safe_float(val, strip_currency=True):
-            if not val or val == '-':
-                return None
-            if strip_currency:
-                val = str(val).replace('$', '').replace(',', '')
-            if '%' in str(val):
-                val = str(val).strip('%')
-            return float(val)
-            
         for supplier_idx, supplier_name in enumerate(supplier_names):
-            col_start = 2 + (supplier_idx * 3)
-            
+            # Each supplier has 3 columns (price, quantity, total)
+            # The totals are in the last column of each block
+            col_start = 3 + (supplier_idx * 3)  # Start of supplier's block
+            total_col = col_start + 2  # Last column of the block (total column)
             try:
                 structured_data["totals"]["by_supplier"][supplier_name] = {
-                    "subtotal": safe_float(safe_get_cell(formula_data, 26, col_start + 2)),
-                    "tax_rate": safe_float(safe_get_cell(formula_data, 27, col_start + 2)),
-                    "tax_amount": safe_float(safe_get_cell(formula_data, 28, col_start + 2)),
-                    "shipping": safe_float(safe_get_cell(formula_data, 29, col_start + 2)),
-                    "final_total": safe_float(safe_get_cell(formula_data, 30, col_start + 2))
+                    "subtotal": clean_currency_value(safe_get_cell(raw_data, 26, total_col)),
+                    "tax_rate": clean_currency_value(safe_get_cell(raw_data, 27, total_col)),
+                    "tax_amount": clean_currency_value(safe_get_cell(raw_data, 28, total_col)),
+                    "shipping": clean_currency_value(safe_get_cell(raw_data, 29, total_col)),
+                    "final_total": clean_currency_value(safe_get_cell(raw_data, 30, total_col))
                 }
             except (ValueError, AttributeError) as e:
                 logger.warning(f"Error processing totals for supplier {supplier_name}: {str(e)}")
