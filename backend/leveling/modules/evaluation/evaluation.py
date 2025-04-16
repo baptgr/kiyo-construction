@@ -11,7 +11,7 @@ from kiyo_agents.pdf_processor import process_pdf_file
 import os
 
 from .evaluators.evaluators import EVALUATORS_FUNCTIONS
-from .data_extraction import EXTRACTION_FUNCTIONS
+from .data_extraction.data_extraction import EXTRACTION_FUNCTIONS
 from .file_processing import create_sheet_from_template
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def create_target_function(google_access_token: str, run_id: str, dataset_name: 
         response = agent.process_message(message, conversation_id=conversation_id)
 
         # 6. Extract data from Google Sheet
-        data = EXTRACTION_FUNCTIONS[dataset_name](sheet_id)
+        data = EXTRACTION_FUNCTIONS[dataset_name](sheet_id, google_access_token)
         
         return {
             "sheet_id": sheet_id,
@@ -69,7 +69,7 @@ def run_evaluation_pipeline(
     client: Client,
     dataset_name: str = "template-1",
     google_access_token: str = None,
-    num_repetitions: int = 2
+    num_repetitions: int = 1
 ) -> Dict[str, Any]:
     """Run the full evaluation pipeline."""
     # Generate a unique run ID for this evaluation

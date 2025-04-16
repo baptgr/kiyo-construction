@@ -33,7 +33,7 @@ def create_evaluation_dataset(
     examples = [
         {
             "inputs": {
-                "message": "Hello, how are you?",
+                "message": "Can you fill this template with the following bids?",
                 "template_path": os.path.join(settings.BASE_DIR, f"data/templates/{template_name}.xlsx"),
                 "pdf_paths": [
                     os.path.join(settings.BASE_DIR, "data/pdfs/electrical_bid_3.pdf"),
