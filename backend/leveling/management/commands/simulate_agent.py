@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from kiyo_agents.construction_agent import ConstructionAgent
+from leveling.modules.kiyo_agents.construction_agent import ConstructionAgent
 import os
 
 class Command(BaseCommand):

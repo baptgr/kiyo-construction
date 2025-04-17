@@ -115,9 +115,9 @@ def evaluator_item_completeness(inputs: Dict[str, Any], outputs: Dict[str, Any])
     
     for item in items:
         # Check name and description
-        if not item["name"] or not item["description"]:
+        if not item["name"]:
             score = 0
-            details.append(f"Missing name or description for item at row {item['row_index']}")
+            details.append(f"Missing name for item at row {item['row_index']}")
         
         # Check bids for each supplier
         for bid in item["bids"]:

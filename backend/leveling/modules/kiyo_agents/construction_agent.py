@@ -1,10 +1,9 @@
-import os
 from typing import List, Dict, Any, Optional
 from typing_extensions import TypedDict, Annotated
 import logging
-import json
 
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import ToolNode
 from langgraph.graph.message import add_messages
@@ -20,43 +19,6 @@ logger = logging.getLogger(__name__)
 # Global memory saver instance
 _memory_saver = MemorySaver()
 
-# Updated instructions for the construction agent
-CONSTRUCTION_AGENT_INSTRUCTIONS = """
-You are a helpful AI assistant specialized in construction bid leveling. 
-You specialize in helping your user create bid levels in a google sheet.
-
-The objective of bid leveling is to compare bids from different contractors in an apples to apples comparison.
-
-Objectives 
-1. Perform comprehensive bid leveling analysis based on bids data that the user will send. 
-2. Maintain existing spreadsheet structure and formulas 
-3. Provide accurate estimates for excluded items 
-
-Key Requirements 
-1. Create a line per item and for each excluded bid item 
-2. Develop estimates using, Comparative bid data, Industry pricing standards 
-3. Do NOT overwrite existing formulas
-
-Google Sheets Interaction
-You can also interact with Google Sheets via the following tools:
-- Getting sheet names (use get_sheet_names tool)
-- Reading data (values or formulas) from spreadsheets (use read_google_sheet tool)
-- Reading formulas from spreadsheets (use read_google_sheet_formulas tool)
-- Writing data to spreadsheets (use write_google_sheet tool)
-
-When working with spreadsheets:
-1. Ensure you use the correct sheet name in the call (use get_sheet_names tool to get the sheet names)
-2. Always read the content of a sheet right before writing to it and after each user message (use read_google_sheet tool) as the user may have edited the sheet
-3. Never overwrite existing formulas, only add new ones if needed (you can use the read_google_sheet_formulas tool to check if a formula exists)
-4. Follow the spreadsheet structure and formulas as it is. Respect the data type of the cells (e.g. text, number, formula, etc.) they can be infered from the sheet structure. 
-5. Use A1 notation for ranges (e.g., 'Sheet1!A1:D10')
-6. Properly format data for writing (2D array of values)
-7. Do not rewrite in the chat the data / tables you wrote in the sheet, just say that you wrote the data to the sheet
-
-Be helpful, concise, and accurate in your responses. If you don't know something,
-be honest about it instead of making up information.
-"""
-
 class AgentState(TypedDict):
     """Type definition for the agent's state"""
     messages: Annotated[List[BaseMessage], add_messages]
@@ -66,21 +28,21 @@ class AgentState(TypedDict):
 class ConstructionAgent:
     """Implementation of the construction agent using LangGraph."""
     
-    def __init__(self, api_key: Optional[str] = None, 
-                 model_name: str = "o1",
-                 google_access_token: Optional[str] = None,
-                 spreadsheet_id: Optional[str] = None):
-        """Initialize the construction agent."""
+    def __init__(
+        self,
+        api_key: str,
+        google_access_token: str,
+        spreadsheet_id: str,
+        config: Dict[str, Any] = None
+    ):
         self.api_key = api_key
-        self.model_name = model_name
         self.google_access_token = google_access_token
-        self.spreadsheet_id = spreadsheet_id  
+        self.spreadsheet_id = spreadsheet_id
+        self.config = config or {"configurable": {"model": "gpt-4o", "system_instructions": "You are a helpful assistant"}}
+        
         # Use the global memory saver
         self.memory = _memory_saver
         self.graph = self._create_graph()
-
-        #logger.info(f"Google access token: {self.google_access_token}")
-        #logger.info(f"Spreadsheet ID: {self.spreadsheet_id}")
 
     def _create_tools(self) -> List[Dict[str, Any]]:
         """Create the tools for the agent."""
@@ -98,24 +60,19 @@ class ConstructionAgent:
         workflow = StateGraph(AgentState)
         
         # Create the LLM
-        llm = ChatOpenAI(
-            model=self.model_name,
-            #temperature=0,
-            openai_api_key=self.api_key,
-            streaming=True
-        )
+        model = self._get_model()
         
         # Create tools
         tools = self._create_tools()
         
         # Bind tools to the LLM
-        llm_with_tools = llm.bind_tools(tools)
+        llm_with_tools = model.bind_tools(tools)
         
         # Create the agent node
         def agent_node(state: AgentState) -> Dict:
             """Process messages and generate responses."""
             # Prepend the system instructions to the current messages
-            messages_with_instructions = [SystemMessage(content=CONSTRUCTION_AGENT_INSTRUCTIONS)] + state["messages"]
+            messages_with_instructions = [SystemMessage(content=self.config["configurable"]["system_instructions"])] + state["messages"]
             response = llm_with_tools.invoke(messages_with_instructions)
             return {"messages": [response]}
         
@@ -154,6 +111,17 @@ class ConstructionAgent:
         # Compile the graph with memory support
         return workflow.compile(checkpointer=self.memory)
 
+    def _get_model(self):
+        """Get the configured model"""
+        model_name = self.config["configurable"].get("model", "gpt-4o")
+        # Initialize the appropriate model based on config
+        if model_name in ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o1"]:
+            return ChatOpenAI(model=model_name)
+        elif "claude" in model_name:
+            return ChatAnthropic(model=model_name)
+        else:
+            raise ValueError(f"Invalid model: {model_name}")
+        
     def process_message(
         self, 
         message: str, 

@@ -2,7 +2,7 @@
 
 from typing import Dict, Any, List, Optional
 import logging
-from kiyo_agents.google_sheets_service import GoogleSheetsService
+from leveling.modules.kiyo_agents.google_sheets_service import GoogleSheetsService
 
 logger = logging.getLogger(__name__)
 

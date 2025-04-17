@@ -5,9 +5,9 @@ import uuid
 from dotenv import load_dotenv
 from typing import Dict, Any, Callable
 from langsmith import Client
-from kiyo_agents.construction_agent import ConstructionAgent
-from kiyo_agents.message_builder import build_agent_input_message
-from kiyo_agents.pdf_processor import process_pdf_file
+from leveling.modules.kiyo_agents.construction_agent import ConstructionAgent
+from leveling.modules.kiyo_agents.message_builder import build_agent_input_message
+from leveling.modules.kiyo_agents.pdf_processor import process_pdf_file
 import os
 
 from .evaluators.evaluators import EVALUATORS_FUNCTIONS
@@ -17,7 +17,7 @@ from .file_processing import create_sheet_from_template
 logger = logging.getLogger(__name__)
 
 load_dotenv()
-def create_target_function(google_access_token: str, run_id: str, dataset_name: str) -> Callable:
+def create_target_function(google_access_token: str, run_id: str, dataset_name: str, config: Dict[str, Any] = None) -> Callable:
     """Create a target function that processes file inputs and returns agent responses."""
 
     def target_function(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -42,11 +42,12 @@ def create_target_function(google_access_token: str, run_id: str, dataset_name: 
             spreadsheet_id=sheet_id
         )
 
-        # 4. Initialize agent
+        # 4. Initialize agent with configuration
         agent = ConstructionAgent(
             api_key=os.getenv('OPENAI_API_KEY'),
             google_access_token=google_access_token,
-            spreadsheet_id=sheet_id
+            spreadsheet_id=sheet_id,
+            config=config  # Pass the config to the agent
         )
         
         # 5. Process with agent
@@ -69,7 +70,9 @@ def run_evaluation_pipeline(
     client: Client,
     dataset_name: str = "template-1",
     google_access_token: str = None,
-    num_repetitions: int = 1
+    num_repetitions: int = 1,
+    config: Dict[str, Any] = None,
+    experiment_prefix: str = None
 ) -> Dict[str, Any]:
     """Run the full evaluation pipeline."""
     # Generate a unique run ID for this evaluation
@@ -81,16 +84,16 @@ def run_evaluation_pipeline(
     except Exception as e:
         raise ValueError(f"Dataset {dataset_name} not found. Please create it first using the create_evaluation_dataset command.") from e
     
-    # Create target function
+    # Create target function with config
     target_function = create_target_function(
-        google_access_token, run_id, dataset_name)
+        google_access_token, run_id, dataset_name, config)
     
     # Run evaluation
     experiment_results = client.evaluate(
         target_function,
         data=dataset,
         evaluators=EVALUATORS_FUNCTIONS[dataset_name],
-        experiment_prefix="agent-evaluation", 
+        experiment_prefix=experiment_prefix,
         num_repetitions=num_repetitions
     )
     

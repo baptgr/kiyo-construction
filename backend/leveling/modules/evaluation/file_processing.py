@@ -1,6 +1,5 @@
-from typing import List, Dict, Any, Optional
+from typing import Optional
 import os
-from django.conf import settings
 import requests
 
 def get_or_create_folder(google_access_token: str, folder_name: str, parent_id: str = None) -> str:
