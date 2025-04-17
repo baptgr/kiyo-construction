@@ -25,7 +25,7 @@ class Command(BaseCommand):
             '--range',
             type=str,
             help='The range to read in A1 notation (e.g., Sheet1!A1:D10)',
-            default='Bid Comparison!A1:U34'
+            default='Bid Comparison!A1:Z100'
         )
         parser.add_argument(
             '--access-token',

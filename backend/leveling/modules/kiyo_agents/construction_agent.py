@@ -115,7 +115,7 @@ class ConstructionAgent:
         """Get the configured model"""
         model_name = self.config["configurable"].get("model", "gpt-4o")
         # Initialize the appropriate model based on config
-        if model_name in ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o1"]:
+        if model_name in ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o1", "o3", "o3-mini", "o4-mini"]:
             return ChatOpenAI(model=model_name)
         elif "claude" in model_name:
             return ChatAnthropic(model=model_name)

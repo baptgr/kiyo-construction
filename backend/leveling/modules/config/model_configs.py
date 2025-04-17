@@ -20,12 +20,26 @@ CONFIGS = {
         }
     },
     
-    "gpt-4o-mini-standard": {
+    "o3-standard": {
         "configurable": {
-            "model": "gpt-4o-mini",
+            "model": "o3",
             "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
         }
     },
+
+    "o4-mini-standard": {
+        "configurable": {
+            "model": "o4-mini",
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
+        }
+    },
+
+    "o3-mini-standard": {
+        "configurable": {
+            "model": "o3-mini",
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
+        }
+    }
 }
 
 def get_config(config_name: str = "default") -> Dict[str, Any]:

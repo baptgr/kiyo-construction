@@ -167,3 +167,62 @@ def evaluator_supplier_count(inputs: Dict[str, Any], outputs: Dict[str, Any]) ->
         "score": score,
         "details": details
     }
+
+def evaluator_value_errors(inputs: Dict[str, Any], outputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Evaluate if there are any #VALUE! errors in the spreadsheet.
+    
+    Args:
+        inputs: Dictionary containing the input message
+        outputs: Dictionary containing the output data
+        
+    Returns:
+        Dictionary containing the score and details
+    """
+    data = outputs["data"]
+    raw_sheet = data.get("raw_sheet", [])
+    score = 1
+    details = []
+    
+    # Check all cells for #VALUE! errors
+    value_error_cells = []
+    for row_idx, row in enumerate(raw_sheet):
+        for col_idx, cell_value in enumerate(row):
+            if isinstance(cell_value, str) and "#VALUE!" in cell_value:
+                # Convert column index to letter (0 = A, 1 = B, etc.)
+                col_letter = chr(65 + col_idx)
+                cell_ref = f"{col_letter}{row_idx + 1}"
+                value_error_cells.append(cell_ref)
+    
+    if value_error_cells:
+        score = 0
+        details.append(f"Found #VALUE! errors in cells: {', '.join(value_error_cells)}")
+    
+    return {
+        "score": score,
+        "details": details
+    }
+
+def evaluator_minimum_line_items(inputs: Dict[str, Any], outputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Evaluate if the spreadsheet contains at least 3 line items.
+    
+    Args:
+        inputs: Dictionary containing the input message
+        outputs: Dictionary containing the output data
+        
+    Returns:
+        Dictionary containing the score and details
+    """
+    data = outputs["data"]
+    items = data["items"]
+    min_required_items = 3
+    
+    score = 1 if len(items) >= min_required_items else 0
+    details = []
+    
+    if score == 0:
+        details.append(f"Spreadsheet should contain at least {min_required_items} line items, but found only {len(items)}")
+    
+    return {
+        "score": score,
+        "details": details
+    }

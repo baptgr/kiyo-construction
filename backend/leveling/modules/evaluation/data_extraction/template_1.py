@@ -95,6 +95,7 @@ def extract_template_1(spreadsheet_id: str, access_token: str, range_name: str =
                 "end_col": "U"
             }
         },
+        "raw_sheet": raw_data,  # Add the raw sheet data for #VALUE! error detection
         "empty_validations": {
             "first_row": {
                 "range": "A1:U1",
