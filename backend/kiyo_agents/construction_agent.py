@@ -67,7 +67,7 @@ class ConstructionAgent:
     """Implementation of the construction agent using LangGraph."""
     
     def __init__(self, api_key: Optional[str] = None, 
-                 model_name: str = "gpt-4.1",
+                 model_name: str = "o1",
                  google_access_token: Optional[str] = None,
                  spreadsheet_id: Optional[str] = None):
         """Initialize the construction agent."""
