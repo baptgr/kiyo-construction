@@ -30,12 +30,10 @@ class ConstructionAgent:
     
     def __init__(
         self,
-        api_key: str,
         google_access_token: str,
         spreadsheet_id: str,
         config: Dict[str, Any] = None
     ):
-        self.api_key = api_key
         self.google_access_token = google_access_token
         self.spreadsheet_id = spreadsheet_id
         self.config = config or {"configurable": {"model": "gpt-4o", "system_instructions": "You are a helpful assistant"}}
@@ -151,7 +149,9 @@ class ConstructionAgent:
         )
         
         # Add configuration for thread memory
-        config = {"configurable": {"thread_id": conversation_id}} if conversation_id else {}
+        config = self.config
+        if conversation_id:
+            config["configurable"]["thread_id"] = conversation_id
         
         # Run the graph with thread configuration
         result = self.graph.invoke(state, config=config)

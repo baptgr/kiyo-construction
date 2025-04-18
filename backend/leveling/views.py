@@ -87,7 +87,6 @@ def _generate_sse_stream(agent_input: str, conv_id: str, g_token: Optional[str],
             raise ValueError("API key not configured.")
             
         agent = ConstructionAgent(
-            api_key=api_key,
             google_access_token=g_token,
             spreadsheet_id=ss_id
         )

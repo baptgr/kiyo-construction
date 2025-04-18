@@ -1,44 +1,68 @@
 from typing import Dict, Any, List
-from .prompts import CONSTRUCTION_AGENT_INSTRUCTIONS
+from .prompts import (
+    CONSTRUCTION_AGENT_INSTRUCTIONS,
+    CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION
+)
 
 # Default configurations
 DEFAULT_CONFIG = {
     "configurable": {
         "model": "gpt-4o",
-        "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
-    }
+        "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS,
+    },
+    "recursion_limit": 50
 }
 
 # Predefined configurations
 CONFIGS = {
     "default": DEFAULT_CONFIG,
+
+    "gpt-4o-standard": {
+        "configurable": {
+            "model": "gpt-4o",
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION,
+        },
+        "recursion_limit": 50
+    },
     
     "gpt-4.1-standard": {
         "configurable": {
             "model": "gpt-4.1",
-            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
-        }
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION,
+        },
+        "recursion_limit": 50   
     },
     
     "o3-standard": {
         "configurable": {
             "model": "o3",
-            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
-        }
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION,
+        },
+        "recursion_limit": 50
     },
 
     "o4-mini-standard": {
         "configurable": {
             "model": "o4-mini",
-            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
-        }
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION,
+        },
+        "recursion_limit": 50
     },
 
     "o3-mini-standard": {
         "configurable": {
             "model": "o3-mini",
-            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS
-        }
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION,
+        },
+        "recursion_limit": 50
+    },
+
+    "claude-3.7-sonnet-standard": {
+        "configurable": {
+            "model": "claude-3-7-sonnet-latest",
+            "system_instructions": CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION,
+        },
+        "recursion_limit": 50
     }
 }
 

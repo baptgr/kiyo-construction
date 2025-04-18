@@ -1,6 +1,9 @@
+import logging
 from typing import Optional
 import os
 import requests
+
+logger = logging.getLogger(__name__)
 
 def get_or_create_folder(google_access_token: str, folder_name: str, parent_id: str = None) -> str:
     """
@@ -50,34 +53,22 @@ def get_or_create_folder(google_access_token: str, folder_name: str, parent_id: 
     if not create_response.ok:
         print(f"Failed to create folder: {create_response.text}")
         return None
-        
+
     return create_response.json()['id']
 
-def create_sheet_from_template(template_path: str, google_access_token: str, run_id: str) -> Optional[str]:
+def create_sheet_from_template(template_path: str, google_access_token: str, run_folder_id: str) -> Optional[str]:
     """
-    Creates a Google Sheet from an Excel template file in the evaluation/run folder structure.
+    Creates a Google Sheet from an Excel template file in the specified run folder.
     
     Args:
         template_path: Path to the Excel template file
         google_access_token: Google OAuth access token
-        run_id: Unique identifier for this evaluation run
+        run_folder_id: ID of the Google Drive folder for this evaluation run
         
     Returns:
         The ID of the created Google Sheet, or None if creation failed
     """
     try:
-        # 1. Create/get evaluation folder
-        evaluation_folder_id = get_or_create_folder(google_access_token, "evaluation")
-        if not evaluation_folder_id:
-            print("Failed to create/get evaluation folder")
-            return None
-            
-        # 2. Create/get run folder
-        run_folder_id = get_or_create_folder(google_access_token, run_id, evaluation_folder_id)
-        if not run_folder_id:
-            print("Failed to create/get run folder")
-            return None
-        
         # 3. Upload the XLSX file to Google Drive
         file_name = os.path.basename(template_path)
         
@@ -143,4 +134,30 @@ def create_sheet_from_template(template_path: str, google_access_token: str, run
     except Exception as e:
         print(f"Error creating sheet from template: {str(e)}")
         return None
+
+def create_run_folder(google_access_token: str, run_id: str) -> Optional[str]:
+    """
+    Creates the evaluation folder and run subfolder in Google Drive.
+    
+    Args:
+        google_access_token: Google OAuth access token
+        run_id: Unique identifier for this evaluation run
+        
+    Returns:
+        The ID of the created run folder, or None if creation failed
+    """
+    # 1. Create/get evaluation folder
+    evaluation_folder_id = get_or_create_folder(google_access_token, "evaluation")
+    if not evaluation_folder_id:
+        print("Failed to create/get evaluation folder")
+        return None
+        
+    # 2. Create/get run folder
+    run_folder_id = get_or_create_folder(google_access_token, run_id, evaluation_folder_id)
+    if not run_folder_id:
+        print("Failed to create/get run folder")
+        return None
+    logger.info(f"Created run folder {run_id}")
+    
+    return run_folder_id
 

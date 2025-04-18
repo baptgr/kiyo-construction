@@ -34,3 +34,8 @@ When working with spreadsheets:
 Be helpful, concise, and accurate in your responses. If you don't know something,
 be honest about it instead of making up information.
 """
+
+CONSTRUCTION_AGENT_INSTRUCTIONS_EVALUATION = CONSTRUCTION_AGENT_INSTRUCTIONS + """
+
+You cannot ask the user questions. You have to complete the task based on the information provided by the user.
+"""
